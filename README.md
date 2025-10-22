@@ -13,6 +13,7 @@ bollinger-bands/
 │       ├── plotter.py           # Plotting functions
 │       ├── bollinger_bands.py   # Bollinger Bands logic
 │       └── relative_strength.py # Relative strength logic
+│       └── strategy.py
 │
 ├── tests/                       # Unit tests (optional but recommended)
 │   └── test_bands.py
