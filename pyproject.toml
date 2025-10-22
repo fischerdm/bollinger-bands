@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bollinger_bands"
 version = "0.1.0"
-authors = [{ name = "David Fischer", email = "..." }]
+authors = [{ name = "David Fischer", email = "no@email.com" }]
 description = "A Python library for Bollinger Bands analysis"
 readme = "README.md"
 requires-python = ">=3.8"
