@@ -6,11 +6,12 @@ setup(
     package_dir={"": "src"},  # Tell setuptools to look in src/
     packages=find_packages(where="src"),  # Find packages in src/
     install_requires=[
-        'pandas',
-        'matplotlib',
-        'yfinance',
+        'pandas>=1.3.0',           # Data manipulation
+        'matplotlib>=3.4.0',       # Plotting
+        'yfinance>=0.1.67',        # Fetching financial data
+        'pytest>=6.2.0',           # Testing (optional)
     ],
-    author="Your Name",
+    author="David Fischer",
     description="A Python library for calculating and visualizing Bollinger Bands",
     license="MIT",
 )
