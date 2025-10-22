@@ -2,6 +2,8 @@
 A Python library for calculating and visualizing Bollinger Bands, a popular technical analysis tool for financial markets.
 
 ## Folder Structure
+
+```bash
 bollinger_bands/
 │
 ├── bollinger_bands/          # Main package directory
@@ -16,3 +18,4 @@ bollinger_bands/
 ├── setup.py                  # Installation script
 ├── README.md                 # Project documentation
 └── LICENSE                   # License file (e.g., MIT)
+```
