@@ -1,6 +1,6 @@
 import pandas as pd
-from data_fetcher import DataFetcher
-from plotter import Plotter
+from bollinger_bands.data_fetcher import DataFetcher
+from bollinger_bands.plotter import Plotter
 
 class BollingerBandsAnalyzer:
     """Calculates Bollinger Bands for a given ticker."""
