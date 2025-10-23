@@ -9,11 +9,15 @@ bollinger-bands/
 ├── src/
 │   └── bollinger_bands/         # Main package directory
 │       ├── __init__.py          # Makes the directory a Python package
+│       ├── __main__.py          # Package entry point
 │       ├── data_fetcher.py      # Data fetching logic
 │       ├── plotter.py           # Plotting functions
 │       ├── bollinger_bands.py   # Bollinger Bands logic
 │       └── relative_strength.py # Relative strength logic
 │       └── strategy.py
+│
+├── examples/                    # Standalone examples
+│   └── main.py
 │
 ├── tests/                       # Unit tests (optional but recommended)
 │   └── test_bands.py
