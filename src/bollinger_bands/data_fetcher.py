@@ -46,6 +46,27 @@ class DataFetcher:
             
         except Exception as e:
             raise RuntimeError(f"Failed to fetch data: {e}")
+        
+    def fetch_ohlc_data(self, ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """Fetches OHLC (Open, High, Low, Close) data for a single ticker.
+        
+        Returns:
+            DataFrame with columns: ['Open', 'High', 'Low', 'Close']
+        """
+        try:
+            data = yf.download(ticker, start=start_date, end=end_date, 
+                             progress=False, auto_adjust=True)
+            
+            if data.empty:
+                raise ValueError(f"No data found for ticker: {ticker}")
+            
+            # Select only OHLC columns
+            ohlc_data = data[['Open', 'High', 'Low', 'Close']].copy()
+            
+            return ohlc_data
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch OHLC data: {e}")
 
     def resample_to_monthly(self, daily_data: pd.DataFrame) -> pd.DataFrame:
         """Resamples daily data to monthly closing prices."""
