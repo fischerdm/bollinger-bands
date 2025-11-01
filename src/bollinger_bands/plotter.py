@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.graph_objects as go
 
 class Plotter:
     """Handles visualization of financial data and indicators."""
