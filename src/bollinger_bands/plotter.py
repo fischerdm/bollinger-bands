@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import plotly.graph_objects as go
+from typing import Optional
 
 class Plotter:
     """Handles visualization of financial data and indicators."""
@@ -8,6 +9,39 @@ class Plotter:
     def __init__(self):
         pass
 
+    def plot_price_chart(
+        self,
+        data: pd.DataFrame, 
+        line_color: Optional[str] = None 
+    ) -> None:
+        """Plots the price chart for the given ticker."""
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+
+            # Set the body fill colors (e.g., green for up, red for down)
+            increasing_fillcolor='green',
+            decreasing_fillcolor='red',
+            
+            # Set the line color for increasing candles to black
+            increasing_line_color = "black" if line_color == "black" else "green" if line_color is None else line_color,
+
+            # Set the line color for decreasing candles to black
+            decreasing_line_color='black' if line_color == "black" else "red" if line_color is None else line_color
+
+        )])
+
+        fig.update_layout(
+            title=f"{data.attrs['ticker']} Candlestick Chart (2024)",
+            yaxis_title="Price",
+            xaxis_rangeslider_visible=True # False
+        )
+
+        fig.show()
+        
     def plot_bollinger_bands(
         self,
         monthly_data: pd.DataFrame,
