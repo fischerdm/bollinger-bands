@@ -1,4 +1,4 @@
-from .strategy import Strategy
+from .strategies.strategy import Strategy
 
 if __name__ == "__main__":
     print("Running Bollinger Bands package as a module...")

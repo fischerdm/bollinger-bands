@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from bollinger_bands.data_fetcher import DataFetcher
+from bollinger_bands.data.fetcher import DataFetcher
 
 def test_fetch_daily_data_empty_tickers():
     fetcher = DataFetcher()

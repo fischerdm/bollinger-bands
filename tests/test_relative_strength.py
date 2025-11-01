@@ -1,5 +1,5 @@
 import pytest
-from bollinger_bands.relative_strength import RelativeStrengthAnalyzer
+from bollinger_bands.strategies.relative_strength import RelativeStrengthAnalyzer
 
 def test_relative_strength_empty_ticker():
     with pytest.raises(ValueError):
