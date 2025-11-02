@@ -29,10 +29,11 @@ if __name__ == "__main__":
     # Fetch data
     fetcher = DataFetcher()
     # data = fetcher.fetch('AAPL', period='1y')
-    data = fetcher.fetch_ohlc_data('EEM', '2024-01-01', '2024-12-31')
+    # data = fetcher.fetch_ohlc_data('EEM', '2000-01-01', '2024-12-31')
+    data = fetcher.fetch_ohlc_data('URTH', '1969-01-01', '2025-10-31')
 
     # Calculate indicators
-    ma = MovingAverage(window=20)
+    ma = MovingAverage(window=840)
     ma_values = ma.calculate(data)
 
     bb = BollingerBands(window=20, num_std=2)
@@ -41,7 +42,7 @@ if __name__ == "__main__":
     # Plot everything
     plotter = Plotter()
     plotter.plot_candlestick(data)
-    # plotter.add_moving_average(ma_values)
+    plotter.add_moving_average(ma_values)
     # plotter.plot_bollinger_bands(bb_values)
     plotter.show()
 
