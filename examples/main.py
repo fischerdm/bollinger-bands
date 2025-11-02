@@ -28,9 +28,32 @@ if __name__ == "__main__":
 
     # Fetch data
     fetcher = DataFetcher()
-    # data = fetcher.fetch('AAPL', period='1y')
-    # data = fetcher.fetch_ohlc_data('EEM', '2000-01-01', '2024-12-31')
-    data = fetcher.fetch_ohlc_data('URTH', '1969-01-01', '2025-10-31')
+    start_date = '2015-01-01'
+    end_date = '2025-10-31'
+    # data = fetcher.fetch_ohlc_data('EEM', start_date, end_date) # Emerging Markets ETF
+    # data = fetcher.fetch_ohlc_data('URTH', start_date, end_date) # MSCI World ETF
+    # data = fetcher.fetch_ohlc_data('GDX', start_date, end_date) # Gold Miners ETF
+    # data = fetcher.fetch_ohlc_data('GDXJ', start_date, end_date) # Junior Gold Miners ETF
+    # data = fetcher.fetch_ohlc_data('LTAM.L', start_date, end_date) # MSCI Latin America ETF
+    # data = fetcher.fetch_ohlc_data('IBB', start_date, end_date) # iShares Biotechnology ETF
+    data = fetcher.fetch_ohlc_data('XBI', start_date, end_date) # SPDR Biotechnology ETF
+
+    # Sectores
+    # Financial Services
+    # Basic Materials
+    # Consumer Cyclical
+    # Real Estate
+    # Consumer Defensive
+    # Healthcare
+    # Utilities
+    # Communication Services
+
+    # Geographies
+    # Emerging Markets
+    # Asia
+    # Frontier Markets
+    # Global Markets
+    #    
 
     # Calculate indicators
     ma = MovingAverage(window=840) # approx 40 months * 21 days/month
