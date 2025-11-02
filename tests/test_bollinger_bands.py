@@ -1,5 +1,5 @@
 import pytest
-from bollinger_bands.bollinger_bands import BollingerBandsAnalyzer
+from bollinger_bands.indicators.bollinger_bands import BollingerBandsAnalyzer
 
 def test_bollinger_bands_empty_ticker():
     with pytest.raises(ValueError):
