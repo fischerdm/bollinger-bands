@@ -9,7 +9,7 @@ class Plotter:
     def __init__(self):
         pass
 
-    def plot_price_chart(
+    def plot_candlestick(
         self,
         data: pd.DataFrame, 
         line_color: Optional[str] = None 

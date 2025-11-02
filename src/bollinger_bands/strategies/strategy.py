@@ -1,5 +1,8 @@
-from bollinger_bands.indicators.bollinger_bands import BollingerBands
-from bollinger_bands.indicators.bollinger_bands import MovingAverage
+# from bollinger_bands.indicators.bollinger_bands import BollingerBands
+# from bollinger_bands.indicators.moving_average import MovingAverage
+
+from ..indicators.moving_average import MovingAverage
+from ..indicators.bollinger_bands import BollingerBands
 
 # from bollinger_bands.indicators.bollinger_bands import BollingerBandsAnalyzer
 # from bollinger_bands.strategies.relative_strength import RelativeStrengthAnalyzer
