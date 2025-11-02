@@ -12,6 +12,7 @@ class Plotter:
     def plot_candlestick(
         self,
         data: pd.DataFrame, 
+        name='Price',
         line_color: Optional[str] = None 
     ) -> None:
         """Plots the price chart for the given ticker."""
@@ -21,6 +22,7 @@ class Plotter:
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
+            name=name,
 
             # Set the body fill colors (e.g., green for up, red for down)
             increasing_fillcolor='green',
