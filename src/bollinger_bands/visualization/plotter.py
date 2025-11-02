@@ -53,6 +53,41 @@ class Plotter:
         ))
         return self.fig
     
+    def add_bollinger_bands(self, bb_values, name_prefix='BB', dashed=False):
+        if self.fig is None:
+            raise ValueError("Create a plot first using plot_candlestick()")
+        
+        self.fig.add_trace(go.Scatter(
+            x=bb_values['upper'].index,
+            y=bb_values['upper'],
+            name=f'{name_prefix} Upper',
+            line=dict(color='blue', 
+                      width=1,
+                      dash='dash' if dashed else 'solid'),
+            opacity=0.5
+        ))
+        
+        # self.fig.add_trace(go.Scatter(
+        #     x=bb_values['middle'].index,
+        #     y=bb_values['middle'],
+        #     name=f'{name_prefix} Middle',
+        #     line=dict(color='blue', width=1),
+        #     opacity=0.5
+        # ))
+        
+        self.fig.add_trace(go.Scatter(
+            x=bb_values['lower'].index,
+            y=bb_values['lower'],
+            name=f'{name_prefix} Lower',
+            line=dict(color='blue', 
+                      width=1,
+                      dash='dash' if dashed else 'solid'),
+            opacity=0.5
+        ))
+        
+        return self.fig
+
+
     def show(self):
         if self.fig is None:
             raise ValueError("No plot to show")

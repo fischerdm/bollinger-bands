@@ -33,17 +33,21 @@ if __name__ == "__main__":
     data = fetcher.fetch_ohlc_data('URTH', '1969-01-01', '2025-10-31')
 
     # Calculate indicators
-    ma = MovingAverage(window=840)
+    ma = MovingAverage(window=840) # approx 40 months * 21 days/month
     ma_values = ma.calculate(data)
 
-    bb = BollingerBands(window=20, num_std=2)
-    bb_values = bb.calculate(data)
+    bb_40 = BollingerBands(window=840, num_std=2) # approx 40 months * 21 days/month
+    bb_40_values = bb_40.calculate(data)
+
+    bb_20 = BollingerBands(window=420, num_std=2) # approx 20 months * 21 days/month
+    bb_20_values = bb_20.calculate(data)
 
     # Plot everything
     plotter = Plotter()
     plotter.plot_candlestick(data)
     plotter.add_moving_average(ma_values)
-    # plotter.plot_bollinger_bands(bb_values)
+    plotter.add_bollinger_bands(bb_40_values, name_prefix='BB 40M', dashed=False)
+    plotter.add_bollinger_bands(bb_20_values, name_prefix='BB 20M', dashed=True)
     plotter.show()
 
 
