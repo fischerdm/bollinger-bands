@@ -4,6 +4,7 @@ from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.visualization.plotter import Plotter
+import datetime
 
 # Sectores
 # Financial Services
@@ -26,7 +27,8 @@ tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
 ticker_data = {}
 fetcher = DataFetcher()
 start_date = '2015-01-01'
-end_date = '2025-10-31'
+now = datetime.datetime.now()
+end_date = now.strftime('%Y-%m-%d')
 
 print("Fetching data...")
 for ticker in tickers:
