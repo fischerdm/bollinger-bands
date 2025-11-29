@@ -24,6 +24,16 @@ import datetime
 
 # Fetch data for multiple tickers (do this once at startup)
 tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
+tickers_dict = {
+    'EEM': 'Emerging Markets (EEM)',
+    'URTH': 'Global Markets (URTH)',
+    'GDX': 'Basic Materials (GDX)',
+    'GDXJ': 'Basic Materials (GDXJ)',
+    'LTAM.L': 'Latin America (LTAM.L)',
+    'IBB': 'Healthcare (IBB)',
+    'XBI': 'Healthcare (XBI)',
+}
+
 ticker_data = {}
 fetcher = DataFetcher()
 start_date = '2015-01-01'
@@ -42,24 +52,27 @@ app = dash.Dash(__name__)
 
 # Define layout
 app.layout = html.Div([
-    html.H1("Stock Chart with Bollinger Bands", style={'textAlign': 'center'}),
+    html.H1(f"Stock Chart with Bollinger Bands", style={'textAlign': 'center'}),
+    html.H2(id='ticker-name', style={'textAlign': 'center'}),
     
     html.Div([
         html.Label("Select Ticker:"),
         dcc.Dropdown(
             id='ticker-dropdown',
             options=[{'label': ticker, 'value': ticker} for ticker in tickers],
-            value='AAPL',
+            value='EEM',
             style={'width': '200px'}
         )
     ], style={'padding': '20px'}),
     
+    # html.H2(f"{tickers_dict[ticker]}", style={'textAlign': 'center'}),
     dcc.Graph(id='stock-chart', style={'height': '80vh'})
 ])
 
 # Callback to update chart when ticker changes
 @app.callback(
-    Output('stock-chart', 'figure'),
+    [Output('stock-chart', 'figure'),
+     Output('ticker-name', 'children')],
     Input('ticker-dropdown', 'value')
 )
 def update_chart(selected_ticker):
@@ -92,8 +105,10 @@ def update_chart(selected_ticker):
     plotter.add_bollinger_bands(bb_20_values, name_prefix='BB 20M', dashed=True)
     
     print(f"Figure created with {len(plotter.fig.data)} traces")
+
+    ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
     
-    return plotter.fig
+    return plotter.fig, ticker_name
 
 
 # Run the app
