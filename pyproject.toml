@@ -15,6 +15,7 @@ dependencies = [
     "matplotlib>=3.4.0",
     "yfinance>=0.1.67",
     "plotly>=5.3.1",
+    "dash>=2.0.0",
 ]
 
 [project.optional-dependencies]

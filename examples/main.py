@@ -1,77 +1,116 @@
-# from bollinger_bands import Strategy, DataFetcher, Plotter
-# import plotly.graph_objects as go
-
-# if __name__ == "__main__":
-#     # print("Running Bollinger Bands + Relative Strength analysis...")
-#     # strategy = Strategy(ticker='ACWI', benchmark='^GSPC')
-#     # strategy.run_analysis()
-#     fetcher = DataFetcher()
-#     # print(dir(fetcher)) 
-
-#     # data = fetcher.fetch_daily_data(['AAPL', 'IBM'], '2024-01-01', '2024-12-31')
-#     # print(data.head())
-
-#     data = fetcher.fetch_ohlc_data('EEM', '2024-01-01', '2024-12-31')
-#     print(data.head())
-
-#     plotter = Plotter()
-#     plotter.plot_price_chart(data)
-#     plotter.plot_price_chart(data, line_color="black")
-
-
+import dash
+from dash import dcc, html, Input, Output
 from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.visualization.plotter import Plotter
+import datetime
 
-if __name__ == "__main__":
+# Sectores
+# Financial Services
+# Basic Materials
+# Consumer Cyclical
+# Real Estate
+# Consumer Defensive
+# Healthcare
+# Utilities
+# Communication Services
 
-    # Fetch data
-    fetcher = DataFetcher()
-    start_date = '2015-01-01'
-    end_date = '2025-10-31'
-    # data = fetcher.fetch_ohlc_data('EEM', start_date, end_date) # Emerging Markets ETF
-    # data = fetcher.fetch_ohlc_data('URTH', start_date, end_date) # MSCI World ETF
-    # data = fetcher.fetch_ohlc_data('GDX', start_date, end_date) # Gold Miners ETF
-    # data = fetcher.fetch_ohlc_data('GDXJ', start_date, end_date) # Junior Gold Miners ETF
-    # data = fetcher.fetch_ohlc_data('LTAM.L', start_date, end_date) # MSCI Latin America ETF
-    # data = fetcher.fetch_ohlc_data('IBB', start_date, end_date) # iShares Biotechnology ETF
-    data = fetcher.fetch_ohlc_data('XBI', start_date, end_date) # SPDR Biotechnology ETF
+# Geographies
+# Emerging Markets
+# Asia
+# Frontier Markets
+# Global Markets
 
-    # Sectores
-    # Financial Services
-    # Basic Materials
-    # Consumer Cyclical
-    # Real Estate
-    # Consumer Defensive
-    # Healthcare
-    # Utilities
-    # Communication Services
+# Fetch data for multiple tickers (do this once at startup)
+tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
+tickers_dict = {
+    'EEM': 'Emerging Markets (EEM)',
+    'URTH': 'Global Markets (URTH)',
+    'GDX': 'Basic Materials (GDX)',
+    'GDXJ': 'Basic Materials (GDXJ)',
+    'LTAM.L': 'Latin America (LTAM.L)',
+    'IBB': 'Healthcare (IBB)',
+    'XBI': 'Healthcare (XBI)',
+}
 
-    # Geographies
-    # Emerging Markets
-    # Asia
-    # Frontier Markets
-    # Global Markets
-    #    
+ticker_data = {}
+fetcher = DataFetcher()
+start_date = '2015-01-01'
+now = datetime.datetime.now()
+end_date = now.strftime('%Y-%m-%d')
 
-    # Calculate indicators
-    ma = MovingAverage(window=840) # approx 40 months * 21 days/month
+print("Fetching data...")
+for ticker in tickers:
+    data = fetcher.fetch_ohlc_data(ticker, start_date, end_date)
+    data.attrs['ticker'] = ticker  # Make sure ticker is stored
+    ticker_data[ticker] = data
+print("Data loaded!")
+
+# Create Dash app
+app = dash.Dash(__name__)
+
+# Define layout
+app.layout = html.Div([
+    html.H1(f"Stock Chart with Bollinger Bands", style={'textAlign': 'center'}),
+    html.H2(id='ticker-name', style={'textAlign': 'center'}),
+    
+    html.Div([
+        html.Label("Select Ticker:"),
+        dcc.Dropdown(
+            id='ticker-dropdown',
+            options=[{'label': ticker, 'value': ticker} for ticker in tickers],
+            value='EEM',
+            style={'width': '200px'}
+        )
+    ], style={'padding': '20px'}),
+    
+    # html.H2(f"{tickers_dict[ticker]}", style={'textAlign': 'center'}),
+    dcc.Graph(id='stock-chart', style={'height': '80vh'})
+])
+
+# Callback to update chart when ticker changes
+@app.callback(
+    [Output('stock-chart', 'figure'),
+     Output('ticker-name', 'children')],
+    Input('ticker-dropdown', 'value')
+)
+def update_chart(selected_ticker):
+    print(f"Updating chart for {selected_ticker}")
+    
+    # Get data for selected ticker
+    data = ticker_data[selected_ticker]
+    print(f"Data shape: {data.shape}")
+    print(f"Data head:\n{data.head()}")
+    
+    # IMPORTANT: Make sure ticker attribute is set
+    if 'ticker' not in data.attrs:
+        data.attrs['ticker'] = selected_ticker
+    
+    # Calculate indicators FOR THIS SPECIFIC TICKER
+    ma = MovingAverage(window=840)
     ma_values = ma.calculate(data)
-
-    bb_40 = BollingerBands(window=840, num_std=2) # approx 40 months * 21 days/month
+    
+    bb_40 = BollingerBands(window=840, num_std=2)
     bb_40_values = bb_40.calculate(data)
-
-    bb_20 = BollingerBands(window=420, num_std=2) # approx 20 months * 21 days/month
+    
+    bb_20 = BollingerBands(window=420, num_std=2)
     bb_20_values = bb_20.calculate(data)
-
-    # Plot everything
+    
+    # Create plot
     plotter = Plotter()
-    plotter.plot_candlestick(data)
+    fig = plotter.plot_candlestick(data, name=selected_ticker)
     plotter.add_moving_average(ma_values)
     plotter.add_bollinger_bands(bb_40_values, name_prefix='BB 40M', dashed=False)
     plotter.add_bollinger_bands(bb_20_values, name_prefix='BB 20M', dashed=True)
-    plotter.show()
+    
+    print(f"Figure created with {len(plotter.fig.data)} traces")
+
+    ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
+    
+    return plotter.fig, ticker_name
 
 
-
+# Run the app
+if __name__ == '__main__':
+    app.run(debug=False, port=8050)

@@ -8,6 +8,11 @@ class Plotter:
 
     def __init__(self):
         self.fig = None
+        self.all_data = {}  # Store all ticker data
+    
+    def set_data(self, ticker_data_dict):
+        """Store data for multiple tickers"""
+        self.all_data = ticker_data_dict
 
     def plot_candlestick(
         self,
@@ -41,7 +46,44 @@ class Plotter:
             xaxis_rangeslider_visible=True # False
         )
 
+        # Add range slider for zooming
+        self.fig.update_xaxes(
+            rangeslider_visible=True,
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(step="all", label="All")
+                ])
+            )
+        )
+
         return self.fig
+    
+    def add_ticker_selector(self, tickers):
+        """Add dropdown to switch between tickers"""
+        if not self.all_data:
+            raise ValueError("Set data first using set_data()")
+        
+        # Create buttons for each ticker
+        buttons = []
+        for i, ticker in enumerate(tickers):
+            buttons.append(dict(
+                label=ticker,
+                method="update",
+                args=[{"visible": [True if j == i else False 
+                                  for j in range(len(tickers))]}]
+            ))
+        
+        self.fig.update_layout(
+            updatemenus=[dict(
+                active=0,
+                buttons=buttons,
+                x=0.1,
+                y=1.15
+            )]
+        )
 
     def add_moving_average(self, ma_values, name='MA'):
         if self.fig is None:
