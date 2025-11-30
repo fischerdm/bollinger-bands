@@ -8,9 +8,9 @@ from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.indicators.band_width import BandWidth
 from bollinger_bands.visualization.plotter import Plotter
 import datetime
+import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objs as go
-
 
 
 # Tickers configuration
@@ -117,6 +117,19 @@ def update_chart(selected_ticker):
         # Copy traces to row 1
         for trace in plotter.fig.data:
             fig_with_bandwidth.add_trace(trace, row=1, col=1)
+
+        # Hinzufügen der vertikalen Linien für Abwärtsschnittpunkt des 40m SMA
+        # Bedingung: Preis am Vortag über SMA UND Preis am aktuellen Tag unter SMA
+        crossover_dates = data.index[(data['Close'].shift(1) > ma_840_values.shift(1)) & (data['Close'] < ma_840_values)]
+        
+        for date in crossover_dates:
+            fig_with_bandwidth.add_vline(
+                x=date,
+                line_width=1,
+                line_dash="dash",
+                line_color="red",
+                row=1, col=1 # Linien zur obersten Subplot hinzufügen
+            )
         
         # Add BandWidth to row 2
         fig_with_bandwidth.add_trace(
