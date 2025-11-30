@@ -13,40 +13,6 @@ from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 
 
-# Aktualisierte MovingAverage Klasse
-class MovingAverage:
-    def __init__(self, window=20):
-        self.window = window
-    
-    def calculate(self, data):
-        """Calculate simple moving average"""
-        return data['Close'].rolling(window=self.window).mean()
-    
-    def calculate_change(self, data):
-        """Calculate the percentage change of the moving average"""
-        sma = self.calculate(data)
-        return sma.pct_change() * 100
-
-# Aktualisierte BollingerBands Klasse
-class BollingerBands:
-    def __init__(self, window=20, num_std=2):
-        self.window = window
-        self.num_std = num_std
-    
-    def calculate(self, data):
-        """Calculate Bollinger Bands and return as DataFrame"""
-        sma = data['Close'].rolling(window=self.window).mean()
-        std = data['Close'].rolling(window=self.window).std()
-        
-        upper_band = sma + (std * self.num_std)
-        lower_band = sma - (std * self.num_std)
-        
-        return pd.DataFrame({
-            'middle': sma,
-            'upper': upper_band,
-            'lower': lower_band
-        })
-
 # Tickers configuration
 tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
 tickers_dict = {
@@ -152,37 +118,63 @@ def update_chart(selected_ticker):
         for trace in plotter.fig.data:
             fig_with_bandwidth.add_trace(trace, row=1, col=1)
 
-        # NEU & KORRIGIERT: Schattierung der Bereiche basierend auf 50%-Regel zwischen Crossovers
+        # Logik für Schattierung der Bereiche (50%-Regel) und Markierung der Start-/Endpunkte
         is_below = data['Close'] < ma_840_values
-        # Segmente identifizieren, indem Crossovers gezählt werden
         segment_id = (is_below != is_below.shift(1)).cumsum()
         segment_id = segment_id.fillna(0)
         
-        # DataFrame mit Segment-ID und Close-Preis
-        segments_df = pd.DataFrame({'Close': data['Close'], 'is_below': is_below})
+        segments_df = pd.DataFrame({'Close': data['Close'], 'is_below': is_below, 'Date': data.index, 'SMA': ma_840_values})
         
-        # Iteriere durch die Segmente und prüfe die Bedingung
+        start_points = []
+        end_points = []
+
         for name, group in segments_df.groupby(segment_id):
             if len(group) < 2:
                 continue
             
-            # Prüfe ob mehr als 50% der Tage in diesem Segment unter dem SMA lagen
             if group['is_below'].mean() > 0.5:
-                # Füge eine schattierte Spur für dieses spezifische Segment hinzu
+                # Füge schattierte Spur hinzu
                 fig_with_bandwidth.add_trace(
                     go.Scatter(
                         x=group.index,
                         y=group['Close'],
                         mode='lines',
                         fill='tozeroy',
-                        fillcolor='rgba(255, 0, 0, 0.2)', # Rote, transparente Farbe
-                        line=dict(color='rgba(255, 255, 255, 0)'), # Unsichtbare Linie
+                        fillcolor='rgba(255, 0, 0, 0.2)',
+                        line=dict(color='rgba(255, 255, 255, 0)'),
                         name=f'Price below 40M SMA Segment {name}',
-                        showlegend=False # Legende nicht anzeigen, da es viele Segmente gibt
+                        showlegend=False
                     ),
                     row=1, col=1
                 )
+                # Sammle Start- und End-Punkte (Datum und SMA-Höhe)
+                start_points.append({'x': group['Date'].iloc[0], 'y': group['SMA'].iloc[0]})
+                end_points.append({'x': group['Date'].iloc[-1], 'y': group['SMA'].iloc[-1]})
         
+        # Füge die gesammelten Startpunkte als dunkelrote vertikale Linien hinzu
+        for point in start_points:
+            fig_with_bandwidth.add_vline(
+                x=point['x'],
+                y0=0, # Start bei 0 auf der Y-Achse
+                y1=point['y'], # Ende bei der Höhe des SMA
+                line_width=1, # Dünner
+                line_dash="solid", # Durchgezogen
+                line_color="darkred",
+                row=1, col=1
+            )
+        
+        # Füge die gesammelten Endpunkte als dunkelrote vertikale Linien hinzu
+        for point in end_points:
+            fig_with_bandwidth.add_vline(
+                x=point['x'],
+                y0=0, # Start bei 0 auf der Y-Achse
+                y1=point['y'], # Ende bei der Höhe des SMA
+                line_width=1, # Dünner
+                line_dash="solid", # Durchgezogen
+                line_color="darkred",
+                row=1, col=1
+            )
+
         # Add BandWidth to row 2
         fig_with_bandwidth.add_trace(
             go.Scatter(
@@ -268,15 +260,14 @@ def update_chart(selected_ticker):
         fig_with_bandwidth.update_yaxes(title_text="Band Width", row=2, col=1)
         fig_with_bandwidth.update_yaxes(title_text="MA Change (%)", row=3, col=1)
         
-        # KORRIGIERT: Fix subplot titles positioning by iterating through the list
+        # KORRIGIERT: Fix subplot titles positioning by iterating through the list correctly
         annotations = fig_with_bandwidth.layout.annotations
         if len(annotations) > 0:
-            annotations[0].update(y=1.02) # Titel für Reihe 1
+            annotations[0].update(y=1.02)
         if len(annotations) > 1:
-            annotations[1].update(y=0.45) # Titel für Reihe 2
+            annotations[1].update(y=0.45)
         if len(annotations) > 2:
-            annotations[2].update(y=0.21) # Titel für Reihe 3
-
+            annotations[2].update(y=0.21)
 
         print(f"Subplot figure: {len(fig_with_bandwidth.data)} traces")
         
