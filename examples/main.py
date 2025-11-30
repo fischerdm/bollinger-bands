@@ -151,29 +151,53 @@ def update_chart(selected_ticker):
                 start_points.append({'x': group['Date'].iloc[0], 'y': group['SMA'].iloc[0]})
                 end_points.append({'x': group['Date'].iloc[-1], 'y': group['SMA'].iloc[-1]})
         
-        # Füge die gesammelten Startpunkte als dunkelrote vertikale Linien hinzu
         for point in start_points:
-            fig_with_bandwidth.add_vline(
-                x=point['x'],
-                y0=0, # Start bei 0 auf der Y-Achse
-                y1=point['y'], # Ende bei der Höhe des SMA
-                line_width=1, # Dünner
-                line_dash="solid", # Durchgezogen
-                line_color="darkred",
+            fig_with_bandwidth.add_trace(
+                go.Scatter(
+                    x=[point['x'], point['x']],
+                    y=[0, point['y']],  # Start at 0, end at SMA value
+                    mode='lines',
+                    line=dict(color='darkred', width=1),
+                    showlegend=False,
+                ),
+                row=1, col=1
+            )
+
+        for point in end_points:
+            fig_with_bandwidth.add_trace(
+                go.Scatter(
+                    x=[point['x'], point['x']],
+                    y=[0, point['y']],  # Start at 0, end at SMA value
+                    mode='lines',
+                    line=dict(color='darkred', width=1),
+                    showlegend=False,
+                ),
                 row=1, col=1
             )
         
-        # Füge die gesammelten Endpunkte als dunkelrote vertikale Linien hinzu
-        for point in end_points:
-            fig_with_bandwidth.add_vline(
-                x=point['x'],
-                y0=0, # Start bei 0 auf der Y-Achse
-                y1=point['y'], # Ende bei der Höhe des SMA
-                line_width=1, # Dünner
-                line_dash="solid", # Durchgezogen
-                line_color="darkred",
-                row=1, col=1
-            )
+        # # Füge die gesammelten Startpunkte als dunkelrote vertikale Linien hinzu
+        # for point in start_points:
+        #     fig_with_bandwidth.add_vline(
+        #         x=point['x'],
+        #         y0=0, # Start bei 0 auf der Y-Achse
+        #         y1=point['y'], # Ende bei der Höhe des SMA
+        #         line_width=1, # Dünner
+        #         line_dash="solid", # Durchgezogen
+        #         line_color="darkred",
+        #         row=1, col=1
+        #     )
+        
+        # # Füge die gesammelten Endpunkte als dunkelrote vertikale Linien hinzu
+        # for point in end_points:
+        #     fig_with_bandwidth.add_vline(
+        #         x=point['x'],
+        #         y0=0, # Start bei 0 auf der Y-Achse
+        #         y1=point['y'], # Ende bei der Höhe des SMA
+        #         line_width=1, # Dünner
+        #         line_dash="solid", # Durchgezogen
+        #         line_color="darkred",
+        #         row=1, col=1
+        #     )
 
         # Add BandWidth to row 2
         fig_with_bandwidth.add_trace(
