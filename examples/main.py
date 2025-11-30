@@ -1,5 +1,7 @@
 import dash
 from dash import dcc, html, Input, Output
+import dash_bootstrap_components as dbc  # Import the library
+from dash_bootstrap_templates import load_figure_template  # Import figure templates
 from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
@@ -34,25 +36,30 @@ for ticker in tickers:
     ticker_data[ticker] = data
 print("Data loaded!")
 
-app = dash.Dash(__name__)
+# Set up the app with a theme (e.g., 'LUX')
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+load_figure_template("LUX") # Match Plotly charts to the theme
 
-app.layout = html.Div([
+app.layout = dbc.Container([  # Use dbc.Container for responsive layout
     html.H1("Stock Chart with Bollinger Bands", style={'textAlign': 'center'}),
     html.H2(id='ticker-name', style={'textAlign': 'center'}),
     
-    html.Div([
-        html.Label("Select Ticker:"),
-        dcc.Dropdown(
-            id='ticker-dropdown',
-            options=[{'label': ticker, 'value': ticker} for ticker in tickers],
-            value='EEM',
-            style={'width': '200px'}
-        )
-    ], style={'padding': '5px'}),
-    
-    html.Div(id='bandwidth-info', style={'padding': '20px', 'fontSize': '14px'}),
+    dbc.Row([
+        dbc.Col([  # Use dbc.Col to define column widths (e.g. width=4 for a 12-column grid)
+            html.Label("Select Ticker:"),
+            dcc.Dropdown(
+                id='ticker-dropdown',
+                options=[{'label': ticker, 'value': ticker} for ticker in tickers],
+                value='EEM',
+                # Style is handled by the theme now, no specific width needed
+            )
+        ], width=4),
+    ], className="mb-4"), # Add margin bottom
+
+    # html.Div(id='bandwidth-info', style={'padding': '20px', 'fontSize': '14px'}), # Can be styled with DBC
     dcc.Graph(id='stock-chart', style={'height': '80vh'})
-])
+], fluid=True, className="p-4") # Add padding to the container
+
 
 @app.callback(
     [Output('stock-chart', 'figure'),
@@ -94,6 +101,7 @@ def update_chart(selected_ticker):
         ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
         
         # Create subplot figure
+        # Add template="plotly_dark" or another template name to match theme if desired
         fig_with_bandwidth = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
