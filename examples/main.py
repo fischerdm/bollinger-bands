@@ -1,7 +1,7 @@
 import dash
 from dash import dcc, html, Input, Output
-import dash_bootstrap_components as dbc  # Import the library
-from dash_bootstrap_templates import load_figure_template  # Import figure templates
+import dash_bootstrap_components as dbc
+from dash_bootstrap_templates import load_figure_template
 from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
@@ -12,6 +12,40 @@ import pandas as pd
 from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 
+
+# Aktualisierte MovingAverage Klasse
+class MovingAverage:
+    def __init__(self, window=20):
+        self.window = window
+    
+    def calculate(self, data):
+        """Calculate simple moving average"""
+        return data['Close'].rolling(window=self.window).mean()
+    
+    def calculate_change(self, data):
+        """Calculate the percentage change of the moving average"""
+        sma = self.calculate(data)
+        return sma.pct_change() * 100
+
+# Aktualisierte BollingerBands Klasse
+class BollingerBands:
+    def __init__(self, window=20, num_std=2):
+        self.window = window
+        self.num_std = num_std
+    
+    def calculate(self, data):
+        """Calculate Bollinger Bands and return as DataFrame"""
+        sma = data['Close'].rolling(window=self.window).mean()
+        std = data['Close'].rolling(window=self.window).std()
+        
+        upper_band = sma + (std * self.num_std)
+        lower_band = sma - (std * self.num_std)
+        
+        return pd.DataFrame({
+            'middle': sma,
+            'upper': upper_band,
+            'lower': lower_band
+        })
 
 # Tickers configuration
 tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
@@ -118,18 +152,36 @@ def update_chart(selected_ticker):
         for trace in plotter.fig.data:
             fig_with_bandwidth.add_trace(trace, row=1, col=1)
 
-        # Hinzufügen der vertikalen Linien für Abwärtsschnittpunkt des 40m SMA
-        # Bedingung: Preis am Vortag über SMA UND Preis am aktuellen Tag unter SMA
-        crossover_dates = data.index[(data['Close'].shift(1) > ma_840_values.shift(1)) & (data['Close'] < ma_840_values)]
+        # NEU & KORRIGIERT: Schattierung der Bereiche basierend auf 50%-Regel zwischen Crossovers
+        is_below = data['Close'] < ma_840_values
+        # Segmente identifizieren, indem Crossovers gezählt werden
+        segment_id = (is_below != is_below.shift(1)).cumsum()
+        segment_id = segment_id.fillna(0)
         
-        for date in crossover_dates:
-            fig_with_bandwidth.add_vline(
-                x=date,
-                line_width=1,
-                line_dash="dash",
-                line_color="red",
-                row=1, col=1 # Linien zur obersten Subplot hinzufügen
-            )
+        # DataFrame mit Segment-ID und Close-Preis
+        segments_df = pd.DataFrame({'Close': data['Close'], 'is_below': is_below})
+        
+        # Iteriere durch die Segmente und prüfe die Bedingung
+        for name, group in segments_df.groupby(segment_id):
+            if len(group) < 2:
+                continue
+            
+            # Prüfe ob mehr als 50% der Tage in diesem Segment unter dem SMA lagen
+            if group['is_below'].mean() > 0.5:
+                # Füge eine schattierte Spur für dieses spezifische Segment hinzu
+                fig_with_bandwidth.add_trace(
+                    go.Scatter(
+                        x=group.index,
+                        y=group['Close'],
+                        mode='lines',
+                        fill='tozeroy',
+                        fillcolor='rgba(255, 0, 0, 0.2)', # Rote, transparente Farbe
+                        line=dict(color='rgba(255, 255, 255, 0)'), # Unsichtbare Linie
+                        name=f'Price below 40M SMA Segment {name}',
+                        showlegend=False # Legende nicht anzeigen, da es viele Segmente gibt
+                    ),
+                    row=1, col=1
+                )
         
         # Add BandWidth to row 2
         fig_with_bandwidth.add_trace(
@@ -216,10 +268,15 @@ def update_chart(selected_ticker):
         fig_with_bandwidth.update_yaxes(title_text="Band Width", row=2, col=1)
         fig_with_bandwidth.update_yaxes(title_text="MA Change (%)", row=3, col=1)
         
-        # Fix subplot titles positioning
-        fig_with_bandwidth.layout.annotations[0].update(y=1.02)
-        fig_with_bandwidth.layout.annotations[1].update(y=0.45)
-        fig_with_bandwidth.layout.annotations[2].update(y=0.21)
+        # KORRIGIERT: Fix subplot titles positioning by iterating through the list
+        annotations = fig_with_bandwidth.layout.annotations
+        if len(annotations) > 0:
+            annotations[0].update(y=1.02) # Titel für Reihe 1
+        if len(annotations) > 1:
+            annotations[1].update(y=0.45) # Titel für Reihe 2
+        if len(annotations) > 2:
+            annotations[2].update(y=0.21) # Titel für Reihe 3
+
 
         print(f"Subplot figure: {len(fig_with_bandwidth.data)} traces")
         
