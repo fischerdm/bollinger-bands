@@ -136,7 +136,7 @@ def detect_decreasing_prices(data, window=20):
 
 
 # Tickers configuration
-tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI']
+tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI', 'IOGP.L', 'WENS.AS']
 tickers_dict = {
     'EEM': 'Emerging Markets (EEM)',
     'URTH': 'Global Markets (URTH)',
@@ -145,6 +145,8 @@ tickers_dict = {
     'LTAM.L': 'Latin America (LTAM.L)',
     'IBB': 'Healthcare (IBB)',
     'XBI': 'Healthcare (XBI)',
+    'IOGP.L': 'iShares Oil & Gas Exploration & Production UCITS ETF USD (Acc)',
+    'WENS.AS': 'iShares MSCI World Energy Sector UCITS ETF USD Inc'
 }
 
 ticker_data = {}
@@ -155,6 +157,7 @@ end_date = now.strftime('%Y-%m-%d')
 
 print("Fetching data...")
 for ticker in tickers:
+    print(ticker)
     data = fetcher.fetch_ohlc_data(ticker, start_date, end_date)
     data.attrs['ticker'] = ticker
     ticker_data[ticker] = data
