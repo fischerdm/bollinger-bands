@@ -135,6 +135,133 @@ def detect_decreasing_prices(data, window=20):
     return decreasing_signal
 
 
+def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition):
+    """
+    Identify zones from entry (when ALL exit conditions are met) to first re-entry signal.
+    Entry conditions:
+    1. Price crosses below MA (from price_crossing on display_data)
+    2. Both MA conditions are true (combined_ma_condition on daily data)
+    
+    Resets when price crosses back above MA.
+    """
+    zones = []
+    is_below = data['Close'] < ma_values
+    
+    # Map price crossing dates to daily data
+    crossing_dates = set(display_data.index[price_crossing == 1])
+    
+    in_zone = False
+    zone_start = None
+    waiting_for_ma_condition = False
+    
+    for i in range(len(data)):
+        current_date = data.index[i]
+        
+        # Check if we have a price crossing at this date (or most recent period)
+        # Find the most recent crossing in display_data
+        recent_crossing = False
+        for cross_date in crossing_dates:
+            if cross_date <= current_date:
+                # Check if this crossing is recent (within the display period)
+                if i > 0:
+                    prev_date = data.index[i-1]
+                    if cross_date > prev_date or cross_date == current_date:
+                        recent_crossing = True
+                        break
+        
+        # Check if ALL entry conditions are met
+        if recent_crossing and combined_ma_condition.iloc[i] and not in_zone:
+            # Start a new zone
+            in_zone = True
+            zone_start = current_date
+        
+        # Check if we crossed back above MA (reset)
+        if i > 0 and is_below.iloc[i-1] and not is_below.iloc[i]:
+            # Crossed above - end zone without completion
+            if in_zone and zone_start is not None:
+                zones.append({
+                    'start': zone_start,
+                    'end': data.index[i-1],
+                    'completed': False
+                })
+            in_zone = False
+            zone_start = None
+        
+        # Check if we have a re-entry signal while in zone
+        if in_zone and reentry_signals.iloc[i]:
+            # Complete the zone
+            zones.append({
+                'start': zone_start,
+                'end': current_date,
+                'completed': True
+            })
+            in_zone = False
+            zone_start = None
+    
+    # Handle case where we're still in a zone at the end
+    if in_zone and zone_start is not None:
+        zones.append({
+            'start': zone_start,
+            'end': data.index[-1],
+            'completed': False
+        })
+    
+    return zones
+
+
+def identify_entry_to_reentry_zones(data, ma_values, reentry_signals):
+    """
+    Identify zones from entry (price crosses below MA) to first re-entry signal.
+    Resets when price crosses back above MA.
+    """
+    zones = []
+    is_below = data['Close'] < ma_values
+    
+    in_zone = False
+    zone_start = None
+    
+    for i in range(len(data)):
+        # Check if we just crossed below MA (entering below zone)
+        if i > 0 and not is_below.iloc[i-1] and is_below.iloc[i]:
+            # Crossed below - start a new zone
+            in_zone = True
+            zone_start = data.index[i]
+        
+        # Check if we crossed back above MA (reset)
+        if i > 0 and is_below.iloc[i-1] and not is_below.iloc[i]:
+            # Crossed above - end zone without completion
+            if in_zone and zone_start is not None:
+                # Zone ended by crossing back up
+                zones.append({
+                    'start': zone_start,
+                    'end': data.index[i-1],
+                    'completed': False
+                })
+            in_zone = False
+            zone_start = None
+        
+        # Check if we have a re-entry signal while in zone
+        if in_zone and reentry_signals.iloc[i]:
+            # Complete the zone
+            zones.append({
+                'start': zone_start,
+                'end': data.index[i],
+                'completed': True
+            })
+            in_zone = False
+            zone_start = None
+    
+    # Handle case where we're still in a zone at the end
+    if in_zone and zone_start is not None:
+        zones.append({
+            'start': zone_start,
+            'end': data.index[-1],
+            'completed': False
+        })
+    
+    return zones
+
+
 # Tickers configuration
 tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI', 'IOGP.L', 'WENS.AS']
 tickers_dict = {
@@ -181,7 +308,20 @@ app.layout = dbc.Container([
             )
         ], width=3),
         dbc.Col([
-            html.Label("Flat 40M SMA Threshold (%):"),
+            html.Label("Time Period:"),
+            dcc.RadioItems(
+                id='period-selector',
+                options=[
+                    {'label': ' Monthly (40M/20M)', 'value': 'monthly'},
+                    {'label': ' Quarterly (40Q/20Q)', 'value': 'quarterly'}
+                ],
+                value='monthly',
+                inline=True,
+                style={'marginTop': '5px'}
+            )
+        ], width=3),
+        dbc.Col([
+            html.Label("Flat Long MA Threshold (%):"),
             dcc.Input(
                 id='flat-threshold-840',
                 type='number',
@@ -190,9 +330,9 @@ app.layout = dbc.Container([
                 style={'width': '100%'}
             ),
             html.Small("Values below this threshold", style={'color': 'gray'})
-        ], width=2),
+        ], width=3),
         dbc.Col([
-            html.Label("Decreasing 20M SMA Threshold (%):"),
+            html.Label("Decreasing Short MA Threshold (%):"),
             dcc.Input(
                 id='flat-threshold-420',
                 type='number',
@@ -201,7 +341,7 @@ app.layout = dbc.Container([
                 style={'width': '100%'}
             ),
             html.Small("Negative values for decreasing", style={'color': 'gray'})
-        ], width=2),
+        ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
@@ -231,6 +371,23 @@ app.layout = dbc.Container([
             ),
             html.Small("Max distance from lower BB (% of BB width)", style={'color': 'gray'})
         ], width=3),
+    ], className="mb-3"),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Label("Display Zones:"),
+            dcc.Checklist(
+                id='zone-display-checklist',
+                options=[
+                    {'label': ' Below MA (Red)', 'value': 'below_ma'},
+                    {'label': ' Entry-to-Reentry Complete (Green)', 'value': 'complete_zone'},
+                    {'label': ' Entry-to-Reentry Incomplete (Orange)', 'value': 'incomplete_zone'}
+                ],
+                value=['complete_zone'],  # Only green zone selected by default
+                inline=True,
+                style={'marginTop': '5px'}
+            )
+        ], width=12),
     ], className="mb-4"),
 
     dcc.Graph(id='stock-chart', style={'height': '120vh'})
@@ -241,14 +398,16 @@ app.layout = dbc.Container([
     [Output('stock-chart', 'figure'),
      Output('ticker-name', 'children')],
     [Input('ticker-dropdown', 'value'),
+     Input('period-selector', 'value'),
      Input('flat-threshold-840', 'value'),
      Input('flat-threshold-420', 'value'),
      Input('signal-checklist', 'value'),
-     Input('bb-distance-threshold', 'value')]
+     Input('bb-distance-threshold', 'value'),
+     Input('zone-display-checklist', 'value')]
 )
-def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold):
+def update_chart(selected_ticker, period, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold, display_zones):
     try:
-        print(f"Updating chart for {selected_ticker}")
+        print(f"Updating chart for {selected_ticker} with period: {period}")
         data = ticker_data[selected_ticker]
         
         if 'ticker' not in data.attrs:
@@ -263,27 +422,54 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
             enabled_signals = []
         if bb_distance_threshold is None:
             bb_distance_threshold = 10
+        if display_zones is None:
+            display_zones = ['below_ma', 'complete_zone', 'incomplete_zone']
         
-        # Calculate indicators
-        ma_840 = MovingAverage(window=840)
-        ma_840_values = ma_840.calculate(data)
-        ma_840_change = ma_840.calculate_change(data)
-
-        ma_420 = MovingAverage(window=420)
-        ma_420_values = ma_420.calculate(data)
-        ma_420_change = ma_420.calculate_change(data)
+        # Determine window sizes - ALWAYS use monthly periods (840/420 days)
+        long_window = 840   # 40 months
+        short_window = 420  # 20 months
+        period_label = "40M/20M"
         
-        bb_40 = BollingerBands(window=840, num_std=2)
-        bb_40_values = bb_40.calculate(data)
+        # Resample price data for display based on selection
+        if period == 'quarterly':
+            # Display quarterly candles
+            display_data = data.resample('QE').agg({
+                'Open': 'first',
+                'High': 'max',
+                'Low': 'min',
+                'Close': 'last'
+            }).dropna()
+            display_label = "Quarterly"
+        else:  # monthly
+            # Display monthly candles
+            display_data = data.resample('ME').agg({
+                'Open': 'first',
+                'High': 'max',
+                'Low': 'min',
+                'Close': 'last'
+            }).dropna()
+            display_label = "Monthly"
         
-        bb_20 = BollingerBands(window=420, num_std=2)
-        bb_20_values = bb_20.calculate(data)
+        # Calculate MA and BB on DAILY data (for smooth lines on chart)
+        ma_long = MovingAverage(window=long_window)
+        ma_long_values = ma_long.calculate(data)
+        ma_long_change = ma_long.calculate_change(data)  # Daily MA change
         
-        # Calculate BandWidth
-        bw = BandWidth(window=840)
-        bandwidth_40 = bw.calculate(bb_40_values)
+        ma_short = MovingAverage(window=short_window)
+        ma_short_values = ma_short.calculate(data)
+        ma_short_change = ma_short.calculate_change(data)  # Daily MA change
         
-        # Detect candlestick patterns (only if enabled)
+        bb_long = BollingerBands(window=long_window, num_std=2)
+        bb_long_values = bb_long.calculate(data)
+        
+        bb_short = BollingerBands(window=short_window, num_std=2)
+        bb_short_values = bb_short.calculate(data)
+        
+        # Calculate BandWidth on daily data
+        bw = BandWidth(window=long_window)
+        bandwidth_long = bw.calculate(bb_long_values)
+        
+        # Detect candlestick patterns on daily data (only if enabled)
         bullish_engulfing = detect_bullish_engulfing(data) if 'engulfing' in enabled_signals else pd.Series(False, index=data.index)
         hammer = detect_hammer(data) if 'hammer' in enabled_signals else pd.Series(False, index=data.index)
         morning_star = detect_morning_star(data) if 'morning_star' in enabled_signals else pd.Series(False, index=data.index)
@@ -291,12 +477,12 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
         # Combine all re-entry signals
         any_reentry_signal = bullish_engulfing | hammer | morning_star
         
-        # Filter signals: only when price is below 40M SMA AND near lower BB
-        is_below_ma = data['Close'] < ma_840_values
+        # Filter signals: only when price is below long MA AND near lower BB (using daily values)
+        is_below_ma = data['Close'] < ma_long_values
         
         # Calculate distance from lower BB as percentage of BB width
-        bb_width = bb_40_values['upper'] - bb_40_values['lower']
-        distance_from_lower_bb = data['Close'] - bb_40_values['lower']
+        bb_width = bb_long_values['upper'] - bb_long_values['lower']
+        distance_from_lower_bb = data['Close'] - bb_long_values['lower']
         distance_pct = (distance_from_lower_bb / bb_width) * 100
         
         # Signal only triggers when within threshold distance from lower BB
@@ -304,16 +490,33 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
         
         reentry_signals = any_reentry_signal & is_below_ma & near_lower_bb
         
-        # Detect exit conditions
-        price_crossing = detect_price_crossing_down(data, ma_840_values)
-        decreasing_prices = detect_decreasing_prices(data, window=20)
+        # Detect exit conditions:
+        # 1. Price crosses below MA on display data (monthly/quarterly)
+        ma_long_display = MovingAverage(window=40)
+        ma_long_display_values = ma_long_display.calculate(display_data)
+        price_crossing = detect_price_crossing_down(display_data, ma_long_display_values)
         
-        # Create original plot
+        # 2. Both MA conditions are met (flat long MA and decreasing short MA) on daily data
+        flat_long = ma_long_change < flat_threshold_840
+        decreasing_short = ma_short_change < flat_threshold_420
+        combined_ma_condition = flat_long & decreasing_short
+        
+        # Create entry zones that start when ALL exit conditions are met
+        entry_zones = identify_entry_zones_with_conditions(
+            data, 
+            display_data,
+            ma_long_values, 
+            reentry_signals,
+            price_crossing,
+            combined_ma_condition
+        )
+        
+        # Create plot with monthly/quarterly candles but daily MA/BB
         plotter = Plotter()
-        fig = plotter.plot_candlestick(data, name=selected_ticker)
-        plotter.add_moving_average(ma_840_values)
-        plotter.add_bollinger_bands(bb_40_values, name_prefix='BB 40M', dashed=False)
-        plotter.add_bollinger_bands(bb_20_values, name_prefix='BB 20M', dashed=True)
+        fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        plotter.add_moving_average(ma_long_values)
+        plotter.add_bollinger_bands(bb_long_values, name_prefix=f'BB {period_label.split("/")[0]}', dashed=False)
+        plotter.add_bollinger_bands(bb_short_values, name_prefix=f'BB {period_label.split("/")[1]}', dashed=True)
         
         ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
         
@@ -323,7 +526,7 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
             shared_xaxes=True,
             vertical_spacing=0.1,
             row_heights=[0.6, 0.2, 0.2],
-            subplot_titles=(ticker_name, "Band Width (40M BB)", "Exit Signals: MA Change & Price Crossing"),
+            subplot_titles=(f"{ticker_name} ({display_label} Candles, {period_label} MA/BB)", f"Band Width ({period_label} BB)", "Exit Signals: MA Change & Price Crossing"),
             specs=[[{"secondary_y": False}], [{"secondary_y": False}], [{"secondary_y": False}]]
         )
         
@@ -331,67 +534,106 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
         for trace in plotter.fig.data:
             fig_with_bandwidth.add_trace(trace, row=1, col=1)
 
-        # Shade regions where price is below 40M SMA
-        is_below = data['Close'] < ma_840_values
-        segment_id = (is_below != is_below.shift(1)).cumsum()
-        segment_id = segment_id.fillna(0)
-        
-        segments_df = pd.DataFrame({
-            'Close': data['Close'], 
-            'is_below': is_below, 
-            'Date': data.index, 
-            'SMA': ma_840_values
-        })
-        
-        start_points = []
-        end_points = []
-
-        for name, group in segments_df.groupby(segment_id):
-            if len(group) < 2:
-                continue
+        # Add entry-to-reentry zones (controlled by checkboxes)
+        for zone in entry_zones:
+            zone_data = data.loc[zone['start']:zone['end']]
             
-            if group['is_below'].mean() > 0.5:
-                # Add shaded region
+            # Check if we should display this zone type
+            if zone['completed'] and 'complete_zone' in display_zones:
+                color = 'rgba(100, 200, 100, 0.3)'
                 fig_with_bandwidth.add_trace(
                     go.Scatter(
-                        x=group.index,
-                        y=group['Close'],
+                        x=zone_data.index,
+                        y=zone_data['Close'],
                         mode='lines',
                         fill='tozeroy',
-                        fillcolor='rgba(255, 0, 0, 0.2)',
+                        fillcolor=color,
                         line=dict(color='rgba(255, 255, 255, 0)'),
-                        name=f'Price below 40M SMA',
-                        showlegend=False
+                        name='Entry to Re-Entry (Complete)',
+                        showlegend=False,
+                        hoverinfo='skip'
                     ),
                     row=1, col=1
                 )
-                start_points.append({'x': group['Date'].iloc[0], 'y': group['SMA'].iloc[0]})
-                end_points.append({'x': group['Date'].iloc[-1], 'y': group['SMA'].iloc[-1]})
-        
-        # Add vertical lines for start/end points
-        for point in start_points:
-            fig_with_bandwidth.add_trace(
-                go.Scatter(
-                    x=[point['x'], point['x']],
-                    y=[0, point['y']],
-                    mode='lines',
-                    line=dict(color='darkred', width=1),
-                    showlegend=False,
-                ),
-                row=1, col=1
-            )
+            elif not zone['completed'] and 'incomplete_zone' in display_zones:
+                color = 'rgba(255, 200, 100, 0.3)'
+                fig_with_bandwidth.add_trace(
+                    go.Scatter(
+                        x=zone_data.index,
+                        y=zone_data['Close'],
+                        mode='lines',
+                        fill='tozeroy',
+                        fillcolor=color,
+                        line=dict(color='rgba(255, 255, 255, 0)'),
+                        name='Entry to Re-Entry (Incomplete)',
+                        showlegend=False,
+                        hoverinfo='skip'
+                    ),
+                    row=1, col=1
+                )
 
-        for point in end_points:
-            fig_with_bandwidth.add_trace(
-                go.Scatter(
-                    x=[point['x'], point['x']],
-                    y=[0, point['y']],
-                    mode='lines',
-                    line=dict(color='darkred', width=1),
-                    showlegend=False,
-                ),
-                row=1, col=1
-            )
+        # Shade regions where price is below long MA (controlled by checkbox)
+        if 'below_ma' in display_zones:
+            is_below = data['Close'] < ma_long_values
+            segment_id = (is_below != is_below.shift(1)).cumsum()
+            segment_id = segment_id.fillna(0)
+        
+            segments_df = pd.DataFrame({
+                'Close': data['Close'], 
+                'is_below': is_below, 
+                'Date': data.index, 
+                'SMA': ma_long_values
+            })
+            
+            start_points = []
+            end_points = []
+
+            for name, group in segments_df.groupby(segment_id):
+                if len(group) < 2:
+                    continue
+                
+                if group['is_below'].mean() > 0.5:
+                    # Add shaded region
+                    fig_with_bandwidth.add_trace(
+                        go.Scatter(
+                            x=group.index,
+                            y=group['Close'],
+                            mode='lines',
+                            fill='tozeroy',
+                            fillcolor='rgba(255, 0, 0, 0.2)',
+                            line=dict(color='rgba(255, 255, 255, 0)'),
+                            name=f'Price below Long MA',
+                            showlegend=False
+                        ),
+                        row=1, col=1
+                    )
+                    start_points.append({'x': group['Date'].iloc[0], 'y': group['SMA'].iloc[0]})
+                    end_points.append({'x': group['Date'].iloc[-1], 'y': group['SMA'].iloc[-1]})
+            
+            # Add vertical lines for start/end points
+            for point in start_points:
+                fig_with_bandwidth.add_trace(
+                    go.Scatter(
+                        x=[point['x'], point['x']],
+                        y=[0, point['y']],
+                        mode='lines',
+                        line=dict(color='darkred', width=1),
+                        showlegend=False,
+                    ),
+                    row=1, col=1
+                )
+
+            for point in end_points:
+                fig_with_bandwidth.add_trace(
+                    go.Scatter(
+                        x=[point['x'], point['x']],
+                        y=[0, point['y']],
+                        mode='lines',
+                        line=dict(color='darkred', width=1),
+                        showlegend=False,
+                    ),
+                    row=1, col=1
+                )
         
         # Add re-entry signals to main chart
         reentry_dates = data.index[reentry_signals]
@@ -415,18 +657,18 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
                 row=1, col=1
             )
 
-        # Add BandWidth to row 2
+        # Add BandWidth to row 2 (using daily data)
         fig_with_bandwidth.add_trace(
             go.Scatter(
                 x=data.index,
-                y=bandwidth_40,
+                y=bandwidth_long,
                 name='BandWidth',
                 line=dict(color='darkblue', width=2)
             ),
             row=2, col=1
         )
         
-        mean_bw = bandwidth_40.mean()
+        mean_bw = bandwidth_long.mean()
         fig_with_bandwidth.add_hline(
             y=mean_bw,
             line_dash="dash",
@@ -435,12 +677,12 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
             row=2, col=1
         )
         
-        # Add MA change to row 3
+        # Add MA change to row 3 (using daily data for smooth lines)
         fig_with_bandwidth.add_trace(
             go.Scatter(
                 x=data.index,
-                y=ma_840_change,
-                name='MA 840 Change',
+                y=ma_long_change,
+                name=f'MA {period_label.split("/")[0]} Change',
                 line=dict(color='red', width=2)
             ),
             row=3, col=1
@@ -448,15 +690,15 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
         fig_with_bandwidth.add_trace(
             go.Scatter(
                 x=data.index,
-                y=ma_420_change,
-                name='MA 420 Change',
+                y=ma_short_change,
+                name=f'MA {period_label.split("/")[1]} Change',
                 line=dict(color='green', width=2)
             ),
             row=3, col=1
         )
         
-        # Add vertical lines for price crossing events (solid black/dark grey, spanning whole subplot)
-        crossing_dates = data.index[price_crossing == 1]
+        # Add vertical lines for price crossing events (using monthly/quarterly data)
+        crossing_dates = display_data.index[price_crossing == 1]
         for crossing_date in crossing_dates:
             fig_with_bandwidth.add_vline(
                 x=crossing_date,
@@ -467,18 +709,12 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
                 row=3, col=1
             )
 
-        # Shade backgrounds in subplot 3 for MA conditions
-        # ONLY shade when BOTH conditions occur together
-        # Flat 40M SMA: change is LESS THAN threshold (e.g., < 0.1%)
-        flat_840 = ma_840_change < flat_threshold_840
+        # Shade backgrounds in subplot 3 for MA conditions (using daily data)
+        flat_long = ma_long_change < flat_threshold_840
+        decreasing_short = ma_short_change < flat_threshold_420
+        combined_exit_condition = flat_long & decreasing_short
         
-        # Decreasing 20M SMA: change is LESS THAN threshold (should be negative, e.g., < -0.1%)
-        decreasing_420 = ma_420_change < flat_threshold_420
-        
-        # COMBINED condition: both must be true
-        combined_exit_condition = flat_840 & decreasing_420
-        
-        # Add shaded regions only when BOTH conditions are met (no annotation text)
+        # Add shaded regions only when BOTH conditions are met (using daily data)
         combined_segment_id = (combined_exit_condition != combined_exit_condition.shift(1)).cumsum()
         combined_df = pd.DataFrame({'combined': combined_exit_condition, 'segment': combined_segment_id, 'date': data.index})
         for name, group in combined_df.groupby('segment'):
@@ -486,18 +722,19 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
                 fig_with_bandwidth.add_vrect(
                     x0=group['date'].iloc[0],
                     x1=group['date'].iloc[-1],
-                    fillcolor="rgba(255, 100, 100, 0.2)",
+                    fillcolor="rgba(200, 200, 200, 0.3)",  # Light grey
                     layer="below",
                     line_width=0,
                     row=3, col=1
                 )
 
-        # Add zero line in subplot 3
+        # Add zero line in subplot 3 (black)
         fig_with_bandwidth.add_hline(
             y=0,
             line_dash="solid",
             line_color="black",
             opacity=1,
+            line_width=2,
             row=3, col=1
         )
         
@@ -507,7 +744,7 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
             line_dash="dash",
             line_color="red",
             opacity=0.5,
-            annotation_text=f"Flat 40M: < {flat_threshold_840}%",
+            annotation_text=f"Flat Long: < {flat_threshold_840}%",
             annotation_position="right",
             row=3, col=1
         )
@@ -516,7 +753,7 @@ def update_chart(selected_ticker, flat_threshold_840, flat_threshold_420, enable
             line_dash="dash",
             line_color="green",
             opacity=0.5,
-            annotation_text=f"Decreasing 20M: < {flat_threshold_420}%",
+            annotation_text=f"Decreasing Short: < {flat_threshold_420}%",
             annotation_position="right",
             row=3, col=1
         )
