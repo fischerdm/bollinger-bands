@@ -694,20 +694,44 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             
             print(f"Checking MA conditions for {len(crossing_dates)} crossings (threshold={ma_condition_threshold:.0%}):")
             for cross_date in crossing_dates:
-                # Get the period start date - this is when the candle opened
-                # For the period that ENDS at cross_date, we need to find when it started
+                # Get the period start date
                 if period == 'quarterly':
-                    # Quarter starts on first day of the quarter
                     period_start = pd.Timestamp(cross_date.year, ((cross_date.month - 1) // 3) * 3 + 1, 1)
                 else:  # monthly
-                    # Month starts on first day of the month
                     period_start = pd.Timestamp(cross_date.year, cross_date.month, 1)
                 
-                conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                    cross_date, period_start, data, combined_ma_condition, 
-                    threshold=ma_condition_threshold
-                )
-                print(f"  {cross_date.date()} (period: {period_start.date()} to {cross_date.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                # Find the actual crossing date in daily data (when price crossed below MA)
+                # Look for the day within the period where crossing occurred
+                period_mask = (data.index >= period_start) & (data.index <= cross_date)
+                period_data = data[period_mask]
+                
+                # Find the day when price actually crossed below MA
+                is_below = period_data['Close'] < ma_long_values[period_mask]
+                is_above = period_data['Close'] >= ma_long_values[period_mask]
+                
+                # Find transition from above to below
+                crossing_day = None
+                for i in range(1, len(is_below)):
+                    if is_above.iloc[i-1] and is_below.iloc[i]:
+                        crossing_day = period_data.index[i]
+                        break
+                
+                # If we found the crossing day, check MA conditions from that day forward
+                if crossing_day is not None:
+                    # Check MA conditions from crossing day to end of period
+                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                        cross_date, crossing_day, data, combined_ma_condition, 
+                        threshold=ma_condition_threshold
+                    )
+                    print(f"  {cross_date.date()} (crossing on {crossing_day.date()}, checked {crossing_day.date()} to {cross_date.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                else:
+                    # Fallback: check the entire period if we can't find exact crossing day
+                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                        cross_date, period_start, data, combined_ma_condition, 
+                        threshold=ma_condition_threshold
+                    )
+                    print(f"  {cross_date.date()} (period: {period_start.date()} to {cross_date.date()}, no exact crossing day found): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                
                 if conditions_met:
                     valid_crossings.loc[cross_date] = 1
             
