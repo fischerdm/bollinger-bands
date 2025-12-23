@@ -89,33 +89,119 @@ def detect_morning_star(data):
     return signals
 
 
-def detect_price_crossing_down(data, ma_values):
-    """Detect when price crosses below MA"""
+def detect_price_crossing_down_daily(data, ma_values, smoothing_window=5):
+    """
+    Detect when price crosses below MA for DAILY data with smoothing.
+    Uses a moving average of the price to reduce noise.
+    """
     crossing_signal = pd.Series(0, index=data.index, dtype=float)
     
-    is_below = data['Close'] < ma_values
-    segment_id = (is_below != is_below.shift(1)).cumsum()
-    segment_id = segment_id.fillna(0)
+    # Clean data - remove NaN values
+    valid_mask = data['Close'].notna() & ma_values.notna()
+    clean_data = data[valid_mask].copy()
+    clean_ma = ma_values[valid_mask]
     
-    segments_df = pd.DataFrame({'is_below': is_below, 'segment': segment_id})
+    if len(clean_data) < smoothing_window * 2:
+        return crossing_signal
     
-    for name, group in segments_df.groupby('segment'):
-        if len(group) < 2:
+    # Apply smoothing to price to reduce noise
+    smoothed_price = clean_data['Close'].rolling(window=smoothing_window, min_periods=1).mean()
+    
+    # Calculate if smoothed price is below MA
+    is_below = smoothed_price < clean_ma
+    is_above = smoothed_price >= clean_ma
+    
+    # Find transitions from above to below
+    prev_above = is_above.shift(1).fillna(False)
+    transitions = is_below & prev_above
+    
+    for i in range(len(clean_data)):
+        if not transitions.iloc[i]:
             continue
-        if group['is_below'].mean() > 0.5:
-            crossing_signal.loc[group.index[0]] = 1
+            
+        # Check if price was above MA for sufficient time before crossing
+        lookback_start = max(0, i - smoothing_window)
+        was_above = is_above.iloc[lookback_start:i]
+        
+        if was_above.sum() < smoothing_window * 0.6:  # At least 60% of days above
+            continue
+        
+        # Check if price stays below MA for sufficient time after crossing
+        lookahead_end = min(len(clean_data), i + smoothing_window)
+        stays_below = is_below.iloc[i:lookahead_end]
+        
+        if stays_below.sum() >= smoothing_window * 0.6:  # At least 60% of days below
+            crossing_signal.loc[clean_data.index[i]] = 1
     
     return crossing_signal
 
 
-def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition):
+def detect_price_crossing_down_period(data, ma_values):
+    """
+    Detect when price crosses below MA for MONTHLY/QUARTERLY data.
+    Simple and clean: Open >= MA and Close < MA means crossing occurred during the period.
+    """
+    crossing_signal = pd.Series(0, index=data.index, dtype=float)
+    
+    # Clean data - remove NaN values
+    valid_mask = data['Open'].notna() & data['Close'].notna() & ma_values.notna()
+    clean_data = data[valid_mask].copy()
+    clean_ma = ma_values[valid_mask]
+    
+    if len(clean_data) < 2:
+        return crossing_signal
+    
+    for i in range(len(clean_data)):
+        period_open = clean_data['Open'].iloc[i]
+        period_close = clean_data['Close'].iloc[i]
+        period_ma = clean_ma.iloc[i]
+        period_date = clean_data.index[i]
+        
+        # Check if price crossed down during this period
+        # Open was above or at MA, Close is below MA
+        if period_open >= period_ma and period_close < period_ma:
+            crossing_signal.loc[period_date] = 1
+            print(f"  Price crossing detected at {period_date.date()}: Open={period_open:.2f} >= MA={period_ma:.2f}, Close={period_close:.2f} < MA")
+    
+    return crossing_signal
+
+
+def check_ma_conditions_for_period(period_end_date, period_start_date, daily_data, ma_condition, threshold=0.5):
+    """
+    Check if MA conditions (flat long + decreasing short) are met for a given period.
+    
+    Args:
+        period_end_date: The end date of the period (monthly/quarterly candle close date)
+        period_start_date: The start date of the period (monthly/quarterly candle open date)
+        daily_data: Daily OHLC data
+        ma_condition: Boolean series of daily MA conditions
+        threshold: Minimum % of days that must have conditions met (0.5 = 50%)
+    
+    Returns:
+        tuple: (bool, float, int, int) - (conditions_met, actual_percentage, days_with_condition, total_days)
+    """
+    # Find daily data between period start and end
+    mask = (daily_data.index >= period_start_date) & (daily_data.index <= period_end_date)
+    
+    if mask.sum() == 0:
+        return False, 0.0, 0, 0
+    
+    # Check what % of trading days had MA conditions met
+    days_in_period = mask.sum()
+    days_with_conditions = ma_condition[mask].sum()
+    condition_pct = days_with_conditions / days_in_period
+    
+    return condition_pct >= threshold, condition_pct, days_with_conditions, days_in_period
+
+
+def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, ma_condition_threshold=0.5, period='daily'):
     """
     Identify zones from entry to FIRST re-entry signal.
     
     Entry starts when:
     - Price is below MA
-    - Both MA conditions are true (flat long + decreasing short)
-    - We are at or after a price crossing point (happened within last N periods)
+    - MA conditions are met (checked per day for daily, per period for monthly/quarterly)
+    - We are at or after a price crossing point
     
     Entry ends when:
     - FIRST re-entry signal occurs (completed = True), OR
@@ -126,6 +212,9 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
     
     # Get all crossing dates
     crossing_dates = display_data.index[price_crossing == 1].tolist()
+    
+    print(f"=== ZONE IDENTIFICATION ({period}) ===")
+    print(f"Valid crossing dates: {len(crossing_dates)}")
     
     in_zone = False
     zone_start = None
@@ -139,37 +228,179 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             if cross_date <= current_date and (last_crossing_date is None or cross_date > last_crossing_date):
                 last_crossing_date = cross_date
         
-        # Entry condition: 
-        # 1. We've had a crossing in the past
-        # 2. Price is below MA
-        # 3. Both MA conditions are true
-        # 4. We're not already in a zone
+        # Check MA conditions based on period type
+        if period in ['monthly', 'quarterly']:
+            # For aggregated views, determine which period this date belongs to
+            if period == 'quarterly':
+                # Find the quarter end date for current_date
+                quarter = (current_date.month - 1) // 3 + 1
+                if quarter == 4:
+                    period_end = pd.Timestamp(current_date.year, 12, 31)
+                else:
+                    period_end = pd.Timestamp(current_date.year, quarter * 3, 1) + pd.offsets.MonthEnd(0)
+                period_start = pd.Timestamp(current_date.year, ((current_date.month - 1) // 3) * 3 + 1, 1)
+            else:  # monthly
+                period_start = pd.Timestamp(current_date.year, current_date.month, 1)
+                period_end = period_start + pd.offsets.MonthEnd(0)
+            
+            # Check MA conditions for this period
+            conditions_met, _, _, _ = check_ma_conditions_for_period(
+                period_end, period_start, data, combined_ma_condition, 
+                threshold=ma_condition_threshold
+            )
+        else:
+            # For daily view, check MA conditions on this specific day
+            conditions_met = combined_ma_condition.iloc[i]
+        
+        # Entry condition
         has_recent_crossing = last_crossing_date is not None
         
-        if has_recent_crossing and is_below.iloc[i] and combined_ma_condition.iloc[i] and not in_zone:
+        if has_recent_crossing and is_below.iloc[i] and conditions_met and not in_zone:
             in_zone = True
             zone_start = current_date
+            print(f"  Zone STARTED at {current_date.date()}")
         
         # Exit condition 1: Crossed back above MA (incomplete zone)
         if in_zone and not is_below.iloc[i]:
             if zone_start is not None:
                 zones.append({'start': zone_start, 'end': data.index[i-1] if i > 0 else current_date, 'completed': False})
+                print(f"  Zone ENDED (incomplete) at {data.index[i-1].date() if i > 0 else current_date.date()}")
             in_zone = False
             zone_start = None
-            last_crossing_date = None  # Reset for next cycle
+            last_crossing_date = None
         
         # Exit condition 2: FIRST re-entry signal (completed zone)
         if in_zone and reentry_signals.iloc[i]:
             zones.append({'start': zone_start, 'end': current_date, 'completed': True})
+            print(f"  Zone COMPLETED at {current_date.date()} (re-entry signal)")
             in_zone = False
             zone_start = None
-            last_crossing_date = None  # Reset for next cycle
+            last_crossing_date = None
     
     # Handle case where we're still in a zone at the end
     if in_zone and zone_start is not None:
         zones.append({'start': zone_start, 'end': data.index[-1], 'completed': False})
+        print(f"  Zone still OPEN at end: {data.index[-1].date()}")
     
+    print(f"Total zones identified: {len(zones)}")
     return zones
+
+
+def format_quarter_labels_two_levels(dates):
+    """
+    Format dates with quarters on top line and years on bottom line.
+    Year is shown at Q4 to indicate end of year.
+    
+    Example output:
+    Q1     Q2     Q3    Q4        Q1     Q2     Q3    Q4
+                           2021                           2022
+    """
+    labels = []
+    prev_year = None
+    
+    for i, date in enumerate(dates):
+        quarter = (date.month - 1) // 3 + 1
+        year = date.year
+        
+        # Show year only at Q4 (end of year) to avoid overlap with next year's Q1
+        # Exception: if it's the first label and not Q4, show year
+        is_first = prev_year is None
+        is_q4 = quarter == 4
+        year_changed = year != prev_year if prev_year is not None else False
+        
+        if is_first and not is_q4:
+            # First label but not Q4 - show year to orient user
+            labels.append(f"Q{quarter}<br><b>{year}</b>")
+        elif is_q4:
+            # Q4 - always show year as it marks end of year
+            labels.append(f"Q{quarter}<br><b>{year}</b>")
+        else:
+            # Regular quarter - no year
+            labels.append(f"Q{quarter}<br> ")  # Space keeps alignment
+        
+        prev_year = year
+    
+    return labels
+
+
+def format_monthly_labels_as_quarters(dates):
+    """
+    Format monthly dates showing quarters (Q1-Q4) and year at Q4 or year change.
+    Shows quarter label only in the MIDDLE month of each quarter (Feb, May, Aug, Nov).
+    
+    Example output:
+         Q1                Q2                Q3                Q4
+    2021                                                        2021
+    """
+    labels = []
+    prev_year = None
+    
+    for i, date in enumerate(dates):
+        quarter = (date.month - 1) // 3 + 1
+        year = date.year
+        month = date.month
+        
+        # Middle months of each quarter: Feb(2), May(5), Aug(8), Nov(11)
+        middle_months = {2: 'Q1', 5: 'Q2', 8: 'Q3', 11: 'Q4'}
+        
+        if month in middle_months:
+            # This is a middle month - show the quarter
+            quarter_label = middle_months[month]
+            
+            # Show year at November (Q4) or first label
+            is_first = prev_year is None
+            is_november = month == 11
+            
+            if is_first:
+                labels.append(f"{quarter_label}<br><b>{year}</b>")
+            elif is_november:
+                labels.append(f"{quarter_label}<br><b>{year}</b>")
+            else:
+                labels.append(f"{quarter_label}<br> ")
+        else:
+            # Not a middle month - no label
+            labels.append(" <br> ")
+        
+        prev_year = year
+    
+    return labels
+
+
+def format_daily_labels_simple(dates, max_labels=30):
+    """
+    Format daily dates showing only year at year boundaries.
+    For daily data, shows every Nth date to avoid clutter.
+    """
+    labels = []
+    prev_year = None
+    
+    # Determine sampling - show about 30 labels max
+    n_days = len(dates)
+    if n_days > max_labels:
+        step = max(1, n_days // max_labels)
+    else:
+        step = max(1, n_days // 20)  # At least every 20th day
+    
+    for i, date in enumerate(dates):
+        year = date.year
+        
+        # Only create label at sampling points
+        if i % step != 0 and prev_year == year:
+            labels.append("")
+            continue
+        
+        # Show year at first label or when year changes
+        is_first = prev_year is None
+        year_changed = year != prev_year if prev_year is not None else False
+        
+        if is_first or year_changed:
+            labels.append(f"<b>{year}</b>")
+        else:
+            labels.append("")
+        
+        prev_year = year
+    
+    return labels
 
 
 # Tickers configuration
@@ -252,6 +483,19 @@ app.layout = dbc.Container([
             dcc.Input(id='bb-distance-threshold', type='number', value=10, min=0, step=5, style={'width': '100%'}),
             html.Small("Max distance from lower BB", style={'color': 'gray'})
         ], width=3),
+        dbc.Col([
+            html.Label("Smoothing Window (Daily Exit):"),
+            dcc.Input(id='smoothing-window', type='number', value=5, min=1, max=20, step=1, style={'width': '100%'}),
+            html.Small("Days for price smoothing", style={'color': 'gray'})
+        ], width=3),
+    ], className="mb-3"),
+    
+    dbc.Row([
+        dbc.Col([
+            html.Label("MA Condition Threshold (Monthly/Quarterly):"),
+            dcc.Input(id='ma-condition-threshold', type='number', value=0.5, min=0, max=1, step=0.05, style={'width': '100%'}),
+            html.Small("Min % of period with MA conditions (0=off, 0.5=50%, 1=100%)", style={'color': 'gray'})
+        ], width=4),
     ], className="mb-3"),
     
     dbc.Row([
@@ -286,9 +530,10 @@ app.layout = dbc.Container([
      Input('ma-period-selector', 'value'), Input('scale-selector', 'value'),
      Input('flat-threshold-840', 'value'), Input('flat-threshold-420', 'value'),
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
-     Input('zone-display-checklist', 'value')]
+     Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
+     Input('ma-condition-threshold', 'value')]
 )
-def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold, display_zones):
+def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold, display_zones, smoothing_window, ma_condition_threshold):
     try:
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
@@ -315,8 +560,10 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         display_zones = display_zones or ['complete_zone']
         scale = scale or 'linear'
         ma_period = ma_period or '40m20m'
+        smoothing_window = smoothing_window or 5
+        ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
         
-        print(f"Thresholds: flat_long={flat_threshold_840}, decreasing_short={flat_threshold_420}")
+        print(f"Thresholds: flat_long={flat_threshold_840}, decreasing_short={flat_threshold_420}, smoothing_window={smoothing_window}, ma_condition_threshold={ma_condition_threshold}")
         
         # MA/BB windows
         if ma_period == '20m10m':
@@ -411,16 +658,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         near_lower_bb = distance_pct <= bb_distance_threshold
         reentry_signals = any_reentry_signal & is_below_ma & near_lower_bb
         
-        # Exit conditions
-        ma_long_display = MovingAverage(window=40)
-        ma_long_display_values = ma_long_display.calculate(display_data)
-        price_crossing = detect_price_crossing_down(display_data, ma_long_display_values)
-        
-        print(f"Price crossings detected: {price_crossing.sum()}")
-        if price_crossing.sum() > 0:
-            crossing_dates = display_data.index[price_crossing == 1]
-            print(f"Crossing dates: {crossing_dates[:5].tolist() if len(crossing_dates) > 5 else crossing_dates.tolist()}")
-        
+        # Calculate MA conditions FIRST (needed for crossing detection)
         flat_long = ma_long_change < flat_threshold_840
         decreasing_short = ma_short_change < flat_threshold_420
         combined_ma_condition = flat_long & decreasing_short
@@ -429,7 +667,117 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         print(f"Days with decreasing short MA: {decreasing_short.sum()}")
         print(f"Days with both conditions: {combined_ma_condition.sum()}")
         
-        entry_zones = identify_entry_zones_with_conditions(data, display_data, ma_long_values, reentry_signals, price_crossing, combined_ma_condition)
+        # Exit conditions - IMPROVED CROSSING DETECTION
+        # For monthly/quarterly, we need to compare against the daily MA at the period dates
+        # NOT calculate a new MA on the aggregated data (which would have too few points)
+        
+        print(f"=== EXIT SIGNAL DETECTION ({period} view) ===")
+        print(f"Display data shape: {display_data.shape}")
+        
+        # Get MA values at the display_data dates from the daily MA
+        ma_at_period_dates = ma_long_values.reindex(display_data.index, method='nearest')
+        print(f"MA values at period dates: {len(ma_at_period_dates)} values")
+        print(f"MA values NaN count: {ma_at_period_dates.isna().sum()}")
+        
+        # Detect price crossings (simple Open/Close check)
+        if period == 'daily':
+            price_crossing = detect_price_crossing_down_daily(display_data, ma_long_values, smoothing_window=smoothing_window)
+        else:
+            price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
+        
+        print(f"Total price crossings detected: {price_crossing.sum()}")
+        
+        # For monthly/quarterly: filter crossings by MA conditions threshold
+        if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
+            crossing_dates = display_data.index[price_crossing == 1]
+            valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
+            
+            print(f"Checking MA conditions for {len(crossing_dates)} crossings (threshold={ma_condition_threshold:.0%}):")
+            for cross_date in crossing_dates:
+                # Get the period start date - this is when the candle opened
+                # For the period that ENDS at cross_date, we need to find when it started
+                if period == 'quarterly':
+                    # Quarter starts on first day of the quarter
+                    period_start = pd.Timestamp(cross_date.year, ((cross_date.month - 1) // 3) * 3 + 1, 1)
+                else:  # monthly
+                    # Month starts on first day of the month
+                    period_start = pd.Timestamp(cross_date.year, cross_date.month, 1)
+                
+                conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                    cross_date, period_start, data, combined_ma_condition, 
+                    threshold=ma_condition_threshold
+                )
+                print(f"  {cross_date.date()} (period: {period_start.date()} to {cross_date.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                if conditions_met:
+                    valid_crossings.loc[cross_date] = 1
+            
+            price_crossing = valid_crossings
+            print(f"Valid exit signals after MA condition check: {price_crossing.sum()}")
+        
+        print(f"Price crossings detected: {price_crossing.sum()}")
+        if price_crossing.sum() > 0:
+            crossing_dates = display_data.index[price_crossing == 1]
+            print(f"Crossing dates ({len(crossing_dates)}): {crossing_dates.tolist()}")
+            # Show MA condition status at crossing points
+            for cross_date in crossing_dates[:5]:  # Show first 5
+                daily_idx = data.index.get_indexer([cross_date], method='nearest')[0]
+                if 0 <= daily_idx < len(combined_ma_condition):
+                    print(f"  {cross_date}: MA condition = {combined_ma_condition.iloc[daily_idx]}")
+        else:
+            print("No crossings detected - checking why:")
+            print(f"  Display data Open range: {display_data['Open'].min():.2f} to {display_data['Open'].max():.2f}")
+            print(f"  Display data Close range: {display_data['Close'].min():.2f} to {display_data['Close'].max():.2f}")
+            print(f"  MA values range: {ma_at_period_dates.min():.2f} to {ma_at_period_dates.max():.2f}")
+            print(f"  Periods where Close < MA: {(display_data['Close'] < ma_at_period_dates).sum()}")
+            print(f"  Periods where Open >= MA and Close < MA: {((display_data['Open'] >= ma_at_period_dates) & (display_data['Close'] < ma_at_period_dates)).sum()}")
+        
+        entry_zones = identify_entry_zones_with_conditions(
+            data, 
+            display_data, 
+            ma_long_values, 
+            reentry_signals, 
+            price_crossing, 
+            combined_ma_condition,
+            ma_condition_threshold=ma_condition_threshold,
+            period=period
+        )
+        
+        print(f"=== ENTRY ZONES ({period} view) ===")
+        print(f"Number of entry zones identified: {len(entry_zones)}")
+        if len(entry_zones) > 0:
+            for i, zone in enumerate(entry_zones[:5]):  # Show first 5
+                zone_length = (zone['end'] - zone['start']).days
+                print(f"  Zone {i+1}: {zone['start'].date()} to {zone['end'].date()} ({zone_length} days), completed={zone['completed']}")
+        else:
+            print("No entry zones - checking conditions:")
+            print(f"  Total days in data: {len(data)}")
+            print(f"  Days with price below MA: {(data['Close'] < ma_long_values).sum()}")
+            print(f"  Days with MA conditions met: {combined_ma_condition.sum()}")
+            print(f"  Days with reentry signals: {reentry_signals.sum()}")
+            print(f"  Price crossings detected: {price_crossing.sum()}")
+            
+            # Check if there are any periods where all conditions align
+            below_ma = data['Close'] < ma_long_values
+            both_conditions = below_ma & combined_ma_condition
+            print(f"  Days with BOTH below MA AND MA conditions: {both_conditions.sum()}")
+            
+            if price_crossing.sum() > 0:
+                print("  Crossings exist but no zones - checking why:")
+                for cross_date in display_data.index[price_crossing == 1][:3]:
+                    print(f"    Crossing at {cross_date.date()}:")
+                    # Find data after crossing
+                    mask = (data.index > cross_date) & (data.index < cross_date + pd.Timedelta(days=90))
+                    if mask.any():
+                        days_after = mask.sum()
+                        below_after = below_ma[mask].sum()
+                        conditions_after = combined_ma_condition[mask].sum()
+                        both_after = both_conditions[mask].sum()
+                        reentry_after = reentry_signals[mask].sum()
+                        print(f"      Days after crossing (90d window): {days_after}")
+                        print(f"      Days below MA: {below_after}")
+                        print(f"      Days with MA conditions: {conditions_after}")
+                        print(f"      Days with BOTH: {both_after}")
+                        print(f"      Reentry signals: {reentry_after}")
         
         # Plot
         plotter = Plotter()
@@ -515,15 +863,19 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         fig_with_bandwidth.add_trace(go.Scatter(x=data.index, y=ma_long_change, name=f'MA {long_name} Change', line=dict(color='red', width=2)), row=3, col=1)
         fig_with_bandwidth.add_trace(go.Scatter(x=data.index, y=ma_short_change, name=f'MA {short_name} Change', line=dict(color='green', width=2)), row=3, col=1)
         
-        # Price crossings - these are just crossings, we'll filter them for display later
+        # Price crossings - FIXED: only show when MA conditions are ALREADY met at crossing time
+        # We need to check if MA conditions were true at the time of the crossing, not after
         for cross_date in display_data.index[price_crossing == 1]:
-            # Only show crossing line if BOTH MA conditions are met at that time
-            # Find the corresponding daily data point
-            daily_mask = (data.index >= cross_date) & (data.index < cross_date + pd.Timedelta(days=30))
-            if daily_mask.any():
-                # Check if MA conditions are met during this period
-                if combined_ma_condition[daily_mask].any():
-                    fig_with_bandwidth.add_vline(x=cross_date, line_width=2, line_dash="solid", line_color="darkgrey", opacity=0.7, row=3, col=1)
+            # Find the exact daily data point closest to the crossing date
+            # For monthly/quarterly data, the cross_date might be end of period
+            # So we look for daily data around that date
+            daily_idx = data.index.get_indexer([cross_date], method='nearest')[0]
+            
+            # Check if MA conditions are met at the crossing point (not after)
+            if 0 <= daily_idx < len(combined_ma_condition):
+                if combined_ma_condition.iloc[daily_idx]:
+                    fig_with_bandwidth.add_vline(x=cross_date, line_width=2, line_dash="solid", 
+                                                line_color="darkgrey", opacity=0.7, row=3, col=1)
         
         # MA condition shading
         combined_segment_id = (combined_ma_condition != combined_ma_condition.shift(1)).cumsum()
@@ -539,36 +891,84 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         fig_with_bandwidth.add_hline(y=flat_threshold_840, line_dash="dash", line_color="red", opacity=0.5, row=3, col=1)
         fig_with_bandwidth.add_hline(y=flat_threshold_420, line_dash="dash", line_color="green", opacity=0.5, row=3, col=1)
         
-        # Annotations - use actual dates instead of x=0
+        # IMPROVED ANNOTATIONS - positioned below the title of bottom chart
+        # Use paper coordinates to position relative to the subplot
+        # The bottom subplot starts at approximately y=0 and goes to y=0.23 (based on row_heights [0.6, 0.2, 0.2])
+        
         annotation_x_date = data.index[int(len(data) * 0.02)]  # 2% from start
         
         fig_with_bandwidth.add_annotation(
             text=f"Flat {long_name}: < {flat_threshold_840}%", 
-            xref="x3", yref="y3", 
-            x=annotation_x_date, y=flat_threshold_840, 
-            xanchor="left", showarrow=False, 
+            xref="x3", yref="paper",  # Use paper coordinates for y
+            x=annotation_x_date, y=0.22,  # Position at top of bottom subplot (just below title)
+            xanchor="left", yanchor="top",
+            showarrow=False, 
             bgcolor="rgba(255,255,255,0.9)", 
             bordercolor="red", borderwidth=1, 
             font=dict(size=10, color="red")
         )
         fig_with_bandwidth.add_annotation(
             text=f"Decreasing {short_name}: < {flat_threshold_420}%", 
-            xref="x3", yref="y3", 
-            x=annotation_x_date, y=flat_threshold_420, 
-            xanchor="left", showarrow=False, 
+            xref="x3", yref="paper",  # Use paper coordinates for y
+            x=annotation_x_date, y=0.19,  # Position slightly lower
+            xanchor="left", yanchor="top",
+            showarrow=False, 
             bgcolor="rgba(255,255,255,0.9)", 
             bordercolor="green", borderwidth=1, 
             font=dict(size=10, color="green")
         )
         
-        # Layout
-        fig_with_bandwidth.update_layout(height=1200, showlegend=True, hovermode='x unified',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, bgcolor="rgba(255,255,255,0.8)", bordercolor="lightgray", borderwidth=1),
-            xaxis=dict(rangeselector=dict(buttons=[dict(count=1, label="1m", step="month", stepmode="backward"),
-                dict(count=6, label="6m", step="month", stepmode="backward"), dict(count=1, label="1y", step="year", stepmode="backward"),
-                dict(step="all", label="All")], y=1.15, yanchor="top")))
+        # Layout with improved legend spacing
+        fig_with_bandwidth.update_layout(
+            height=1200, 
+            showlegend=True, 
+            hovermode='x unified',
+            legend=dict(
+                orientation="h", 
+                yanchor="bottom", 
+                y=1.05,  # Increased from 1.02 to add more space
+                xanchor="left", 
+                x=0, 
+                bgcolor="rgba(255,255,255,0.8)", 
+                bordercolor="lightgray", 
+                borderwidth=1
+            ),
+            xaxis=dict(
+                rangeselector=dict(
+                    buttons=[
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"), 
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all", label="All")
+                    ], 
+                    y=1.18,  # Adjusted to accommodate legend
+                    yanchor="top"
+                )
+            )
+        )
         
-        fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False)
+        # Custom x-axis formatting for all period types
+        tick_vals = display_data.index.tolist()
+        
+        if period == 'quarterly':
+            tick_text = format_quarter_labels_two_levels(display_data.index)
+            tick_angle = 0
+        elif period == 'monthly':
+            tick_text = format_monthly_labels_as_quarters(display_data.index)
+            tick_angle = 0
+        else:  # daily
+            tick_text = format_daily_labels_simple(display_data.index)
+            tick_angle = 0
+        
+        fig_with_bandwidth.update_xaxes(
+            tickmode='array',
+            tickvals=tick_vals,
+            ticktext=tick_text,
+            tickangle=tick_angle,
+            row=1, col=1
+        )
+        
+        fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False)
         fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=True)
         
