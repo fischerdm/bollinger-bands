@@ -366,39 +366,39 @@ def format_monthly_labels_as_quarters(dates):
     return labels
 
 
-def format_daily_labels_simple(dates, max_labels=30):
+def format_daily_labels_simple(dates, max_labels=40):
     """
-    Format daily dates showing only year at year boundaries.
-    For daily data, shows every Nth date to avoid clutter.
+    Format daily dates with quarters on top line and years on bottom line.
+    Simple and fast - shows Q labels at quarter starts.
     """
     labels = []
     prev_year = None
-    
-    # Determine sampling - show about 30 labels max
-    n_days = len(dates)
-    if n_days > max_labels:
-        step = max(1, n_days // max_labels)
-    else:
-        step = max(1, n_days // 20)  # At least every 20th day
+    prev_quarter = None
     
     for i, date in enumerate(dates):
         year = date.year
+        quarter = (date.month - 1) // 3 + 1
         
-        # Only create label at sampling points
-        if i % step != 0 and prev_year == year:
-            labels.append("")
-            continue
+        # Only show label if it's a new quarter or first/last point
+        is_first = i == 0
+        is_last = i == len(dates) - 1
+        quarter_changed = quarter != prev_quarter if prev_quarter is not None else True
         
-        # Show year at first label or when year changes
-        is_first = prev_year is None
-        year_changed = year != prev_year if prev_year is not None else False
-        
-        if is_first or year_changed:
-            labels.append(f"<b>{year}</b>")
+        if is_first or is_last or quarter_changed:
+            # Show year if it's first label, last label, or year changed
+            year_changed = year != prev_year if prev_year is not None else False
+            is_q4 = quarter == 4
+            
+            if is_first or year_changed or (is_q4 and is_last):
+                labels.append(f"Q{quarter}<br><b>{year}</b>")
+            else:
+                labels.append(f"Q{quarter}<br> ")
         else:
-            labels.append("")
+            # No label for this date
+            labels.append(" <br> ")
         
         prev_year = year
+        prev_quarter = quarter
     
     return labels
 
@@ -996,30 +996,34 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             )
         )
         
-        # Custom x-axis formatting for all period types
-        tick_vals = display_data.index.tolist()
-        
+        # Custom x-axis formatting for period views
         if period == 'quarterly':
+            tick_vals = display_data.index.tolist()
             tick_text = format_quarter_labels_two_levels(display_data.index)
-            tick_angle = 0
+            
+            fig_with_bandwidth.update_xaxes(
+                tickmode='array',
+                tickvals=tick_vals,
+                ticktext=tick_text,
+                tickangle=0,
+                row=1, col=1
+            )
         elif period == 'monthly':
+            tick_vals = display_data.index.tolist()
             tick_text = format_monthly_labels_as_quarters(display_data.index)
-            tick_angle = 0
-        else:  # daily
-            tick_text = format_daily_labels_simple(display_data.index)
-            tick_angle = 0
-        
-        fig_with_bandwidth.update_xaxes(
-            tickmode='array',
-            tickvals=tick_vals,
-            ticktext=tick_text,
-            tickangle=tick_angle,
-            row=1, col=1
-        )
+            
+            fig_with_bandwidth.update_xaxes(
+                tickmode='array',
+                tickvals=tick_vals,
+                ticktext=tick_text,
+                tickangle=0,
+                row=1, col=1
+            )
+        # For daily, use Plotly's automatic date formatting (much faster)
         
         fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
-        fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False)
-        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=True)
+        fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False, showticklabels=True)
+        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=False, showticklabels=True)
         
         y_type = 'log' if scale == 'log' else 'linear'
         fig_with_bandwidth.update_yaxes(title_text="Price", type=y_type, autorange=True, row=1, col=1)
