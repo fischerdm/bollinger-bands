@@ -919,19 +919,12 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         fig_with_bandwidth.add_trace(go.Scatter(x=data.index, y=ma_long_change, name=f'MA {long_name} Change', line=dict(color='red', width=2)), row=3, col=1)
         fig_with_bandwidth.add_trace(go.Scatter(x=data.index, y=ma_short_change, name=f'MA {short_name} Change', line=dict(color='green', width=2)), row=3, col=1)
         
-        # Price crossings - FIXED: only show when MA conditions are ALREADY met at crossing time
-        # We need to check if MA conditions were true at the time of the crossing, not after
+        # Price crossings - show all validated exit signals
+        # These have already been filtered by MA conditions (with lookahead for daily)
+        # so we don't need to check MA conditions again
         for cross_date in display_data.index[price_crossing == 1]:
-            # Find the exact daily data point closest to the crossing date
-            # For monthly/quarterly data, the cross_date might be end of period
-            # So we look for daily data around that date
-            daily_idx = data.index.get_indexer([cross_date], method='nearest')[0]
-            
-            # Check if MA conditions are met at the crossing point (not after)
-            if 0 <= daily_idx < len(combined_ma_condition):
-                if combined_ma_condition.iloc[daily_idx]:
-                    fig_with_bandwidth.add_vline(x=cross_date, line_width=2, line_dash="solid", 
-                                                line_color="darkgrey", opacity=0.7, row=3, col=1)
+            fig_with_bandwidth.add_vline(x=cross_date, line_width=2, line_dash="solid", 
+                                        line_color="darkgrey", opacity=0.7, row=3, col=1)
         
         # MA condition shading
         combined_segment_id = (combined_ma_condition != combined_ma_condition.shift(1)).cumsum()
