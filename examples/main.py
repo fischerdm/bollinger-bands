@@ -483,19 +483,24 @@ app.layout = dbc.Container([
             dcc.Input(id='bb-distance-threshold', type='number', value=10, min=0, step=5, style={'width': '100%'}),
             html.Small("Max distance from lower BB", style={'color': 'gray'})
         ], width=3),
+    ], className="mb-3"),
+    
+    dbc.Row([
         dbc.Col([
             html.Label("Smoothing Window (Daily Exit):"),
             dcc.Input(id='smoothing-window', type='number', value=5, min=1, max=20, step=1, style={'width': '100%'}),
             html.Small("Days for price smoothing", style={'color': 'gray'})
         ], width=3),
-    ], className="mb-3"),
-    
-    dbc.Row([
         dbc.Col([
-            html.Label("MA Condition Threshold (Monthly/Quarterly):"),
+            html.Label("MA Condition Lookahead (Daily):"),
+            dcc.Input(id='daily-lookahead', type='number', value=10, min=0, max=30, step=1, style={'width': '100%'}),
+            html.Small("Days to check MA conditions after crossing", style={'color': 'gray'})
+        ], width=3),
+        dbc.Col([
+            html.Label("MA Condition Threshold (All Views):"),
             dcc.Input(id='ma-condition-threshold', type='number', value=0.5, min=0, max=1, step=0.05, style={'width': '100%'}),
-            html.Small("Min % of period with MA conditions (0=off, 0.5=50%, 1=100%)", style={'color': 'gray'})
-        ], width=4),
+            html.Small("Min % with MA conditions (0=off, 0.5=50%)", style={'color': 'gray'})
+        ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
@@ -531,9 +536,9 @@ app.layout = dbc.Container([
      Input('flat-threshold-840', 'value'), Input('flat-threshold-420', 'value'),
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
      Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
-     Input('ma-condition-threshold', 'value')]
+     Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value')]
 )
-def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold, display_zones, smoothing_window, ma_condition_threshold):
+def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, enabled_signals, bb_distance_threshold, display_zones, smoothing_window, ma_condition_threshold, daily_lookahead):
     try:
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
@@ -562,8 +567,9 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         ma_period = ma_period or '40m20m'
         smoothing_window = smoothing_window or 5
         ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
+        daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
         
-        print(f"Thresholds: flat_long={flat_threshold_840}, decreasing_short={flat_threshold_420}, smoothing_window={smoothing_window}, ma_condition_threshold={ma_condition_threshold}")
+        print(f"Thresholds: flat_long={flat_threshold_840}, decreasing_short={flat_threshold_420}, smoothing_window={smoothing_window}, ma_condition_threshold={ma_condition_threshold}, daily_lookahead={daily_lookahead}")
         
         # MA/BB windows
         if ma_period == '20m10m':
@@ -682,6 +688,32 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         # Detect price crossings (simple Open/Close check)
         if period == 'daily':
             price_crossing = detect_price_crossing_down_daily(display_data, ma_long_values, smoothing_window=smoothing_window)
+            
+            # Apply MA condition threshold if lookahead > 0
+            if daily_lookahead > 0 and price_crossing.sum() > 0:
+                crossing_dates = display_data.index[price_crossing == 1]
+                valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
+                
+                print(f"Checking MA conditions for {len(crossing_dates)} daily crossings (lookahead={daily_lookahead} days, threshold={ma_condition_threshold:.0%}):")
+                for cross_date in crossing_dates:
+                    # Check MA conditions from crossing date forward for lookahead days
+                    lookahead_end = cross_date + pd.Timedelta(days=daily_lookahead)
+                    
+                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                        lookahead_end, cross_date, data, combined_ma_condition, 
+                        threshold=ma_condition_threshold
+                    )
+                    
+                    if total_days > 0:
+                        print(f"  {cross_date.date()} (checked {cross_date.date()} to {lookahead_end.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                        if conditions_met:
+                            valid_crossings.loc[cross_date] = 1
+                    else:
+                        # Not enough data ahead, accept the crossing
+                        valid_crossings.loc[cross_date] = 1
+                
+                price_crossing = valid_crossings
+                print(f"Valid exit signals after MA condition check: {price_crossing.sum()}")
         else:
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
         
