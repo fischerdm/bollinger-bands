@@ -314,18 +314,45 @@ app.layout = dbc.Container([
     prevent_initial_call=True
 )
 def update_target_date(relayout_data):
-    """Extract the rightmost visible date from chart interactions"""
+    """Extract the rightmost visible date from chart interactions (slider, zoom, pan)"""
     if relayout_data is None:
         return None
     
-    # Check if there's a range selection
+    # Debug: print what we're receiving
+    print(f"DEBUG relayoutData keys: {relayout_data.keys()}")
+    
+    # Check for range changes from slider or zoom/pan
+    # These are the different ways the range can be updated:
+    
+    # Method 1: Direct xaxis.range update (from slider)
     if 'xaxis.range[1]' in relayout_data:
         target_date = relayout_data['xaxis.range[1]']
-        return target_date
-    elif 'xaxis.range' in relayout_data and len(relayout_data['xaxis.range']) > 1:
-        target_date = relayout_data['xaxis.range'][1]
+        print(f"DEBUG: Range from xaxis.range[1]: {target_date}")
         return target_date
     
+    # Method 2: xaxis.range as array (from zoom/pan)
+    if 'xaxis.range' in relayout_data and len(relayout_data['xaxis.range']) > 1:
+        target_date = relayout_data['xaxis.range'][1]
+        print(f"DEBUG: Range from xaxis.range: {target_date}")
+        return target_date
+    
+    # Method 3: Check for xaxis3.range (bottom subplot with rangeslider)
+    if 'xaxis3.range[1]' in relayout_data:
+        target_date = relayout_data['xaxis3.range[1]']
+        print(f"DEBUG: Range from xaxis3.range[1]: {target_date}")
+        return target_date
+    
+    if 'xaxis3.range' in relayout_data and len(relayout_data['xaxis3.range']) > 1:
+        target_date = relayout_data['xaxis3.range'][1]
+        print(f"DEBUG: Range from xaxis3.range: {target_date}")
+        return target_date
+    
+    # Method 4: Check for autosize or other layout changes
+    if 'autosize' in relayout_data or 'width' in relayout_data or 'height' in relayout_data:
+        # Layout resize - don't update date
+        return None
+    
+    print(f"DEBUG: No range found in relayoutData")
     return None
 
 
