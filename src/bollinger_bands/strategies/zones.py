@@ -5,7 +5,7 @@ This module handles identification of trading zones (entry to re-entry).
 """
 
 import pandas as pd
-from crossing_detection import check_ma_conditions_for_period
+from bollinger_bands.indicators.crossing_detection import check_ma_conditions_for_period
 
 
 def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, ma_condition_threshold=0.5, period='daily'):
