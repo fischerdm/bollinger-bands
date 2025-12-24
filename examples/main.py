@@ -289,11 +289,11 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
 def format_quarter_labels_two_levels(dates):
     """
     Format dates with quarters on top line and years on bottom line.
-    Year is shown at Q4 to indicate end of year.
+    Year is shown between Q4 and Q1 (at year boundary) consistent with daily view.
     
     Example output:
-    Q1     Q2     Q3    Q4        Q1     Q2     Q3    Q4
-                           2021                           2022
+    Q3    Q4         Q1     Q2     Q3    Q4         Q1     Q2     Q3
+                2021                           2022
     """
     labels = []
     prev_year = None
@@ -302,21 +302,19 @@ def format_quarter_labels_two_levels(dates):
         quarter = (date.month - 1) // 3 + 1
         year = date.year
         
-        # Show year only at Q4 (end of year) to avoid overlap with next year's Q1
-        # Exception: if it's the first label and not Q4, show year
         is_first = prev_year is None
-        is_q4 = quarter == 4
+        is_q1 = quarter == 1
         year_changed = year != prev_year if prev_year is not None else False
         
-        if is_first and not is_q4:
-            # First label but not Q4 - show year to orient user
+        if is_first:
+            # First label - show quarter with year below
             labels.append(f"Q{quarter}<br><b>{year}</b>")
-        elif is_q4:
-            # Q4 - always show year as it marks end of year
+        elif year_changed and is_q1:
+            # Year changed at Q1 - show year below Q1
             labels.append(f"Q{quarter}<br><b>{year}</b>")
         else:
             # Regular quarter - no year
-            labels.append(f"Q{quarter}<br> ")  # Space keeps alignment
+            labels.append(f"Q{quarter}<br> ")
         
         prev_year = year
     
@@ -325,12 +323,13 @@ def format_quarter_labels_two_levels(dates):
 
 def format_monthly_labels_as_quarters(dates):
     """
-    Format monthly dates showing quarters (Q1-Q4) and year at Q4 or year change.
+    Format monthly dates showing quarters (Q1-Q4) and year between Q4 and Q1.
     Shows quarter label only in the MIDDLE month of each quarter (Feb, May, Aug, Nov).
+    Year shown at January (between Q4 and Q1) consistent with daily view.
     
     Example output:
-         Q1                Q2                Q3                Q4
-    2021                                                        2021
+         Q2                Q3                Q4              Q1         Q2
+                                                  2021                     2022
     """
     labels = []
     prev_year = None
@@ -347,18 +346,22 @@ def format_monthly_labels_as_quarters(dates):
             # This is a middle month - show the quarter
             quarter_label = middle_months[month]
             
-            # Show year at November (Q4) or first label
             is_first = prev_year is None
-            is_november = month == 11
             
             if is_first:
-                labels.append(f"{quarter_label}<br><b>{year}</b>")
-            elif is_november:
+                # First label - show year
                 labels.append(f"{quarter_label}<br><b>{year}</b>")
             else:
                 labels.append(f"{quarter_label}<br> ")
+        elif month == 1:
+            # January - show year at year boundary (between Q4 and Q1)
+            year_changed = year != prev_year if prev_year is not None else False
+            if year_changed or prev_year is None:
+                labels.append(f"<br><b>{year}</b>")
+            else:
+                labels.append(" <br> ")
         else:
-            # Not a middle month - no label
+            # Not a middle month and not January - no label
             labels.append(" <br> ")
         
         prev_year = year
