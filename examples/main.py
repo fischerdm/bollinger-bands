@@ -581,9 +581,13 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         if period == 'quarterly':
             display_data = data.resample('QE').agg({'Open':'first','High':'max','Low':'min','Close':'last'}).dropna()
             display_label = "Quarterly"
+            # Offset the index to center candles in the middle of each quarter (~45 days back)
+            display_data.index = display_data.index - pd.Timedelta(days=45)
         elif period == 'monthly':
             display_data = data.resample('ME').agg({'Open':'first','High':'max','Low':'min','Close':'last'}).dropna()
             display_label = "Monthly"
+            # Offset the index to center candles in the middle of each month (~15 days back)
+            display_data.index = display_data.index - pd.Timedelta(days=15)
         else:
             display_data = data[['Open','High','Low','Close']].copy()
             display_label = "Daily"
@@ -839,6 +843,24 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         plotter = Plotter()
         fig = plotter.plot_candlestick(display_data, name=selected_ticker)
         
+        # Customize hover for quarterly/monthly to show period labels
+        if period in ['quarterly', 'monthly']:
+            # Create hover text showing the period
+            hover_text = []
+            for date in display_data.index:
+                if period == 'quarterly':
+                    quarter = (date.month - 1) // 3 + 1
+                    hover_text.append(f"Q{quarter} {date.year}")
+                else:  # monthly
+                    hover_text.append(date.strftime('%B %Y'))
+            
+            # Update the candlestick trace
+            for trace in fig.data:
+                if trace.type == 'candlestick':
+                    trace.text = hover_text
+                    trace.hovertext = hover_text
+                    break
+        
         print(f"=== PLOTTING ===")
         print(f"After candlestick - fig has {len(fig.data)} traces")
         if len(fig.data) > 0:
@@ -971,7 +993,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         fig_with_bandwidth.update_layout(
             height=1200, 
             showlegend=True, 
-            hovermode='x unified',
+            hovermode='closest',  # Use 'closest' instead of 'x unified' to avoid date confusion from BB traces
             legend=dict(
                 orientation="h", 
                 yanchor="bottom", 
