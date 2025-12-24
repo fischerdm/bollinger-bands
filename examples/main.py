@@ -434,7 +434,10 @@ for ticker in tickers:
     ticker_data[ticker] = data
 print("Data loaded!")
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.LUX])
+app = dash.Dash(__name__, external_stylesheets=[
+    dbc.themes.LUX,
+    "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
+])
 load_figure_template("LUX")
 
 app.layout = dbc.Container([
@@ -443,88 +446,196 @@ app.layout = dbc.Container([
     
     dbc.Row([
         dbc.Col([
-            html.Label("Select Ticker:"),
-            dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value='EEM')
+            html.Div([
+                html.Label("Select Ticker:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-ticker", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+            dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value='EEM'),
+            dbc.Tooltip(
+                "Choose which ETF or stock to analyze. Each ticker represents different market sectors or regions.",
+                target="info-ticker",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("Time Period Price Chart:"),
+            html.Div([
+                html.Label("Time Period Price Chart:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-period", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.RadioItems(id='period-selector', options=[
                 {'label': ' Daily', 'value': 'daily'},
                 {'label': ' Monthly', 'value': 'monthly'},
                 {'label': ' Quarterly', 'value': 'quarterly'}
-            ], value='monthly', inline=True, style={'marginTop': '5px'})
+            ], value='monthly', inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "How to aggregate price data for the candlestick chart. Daily shows each trading day, "
+                "Monthly aggregates by month, Quarterly by quarter. Monthly/Quarterly reduce noise for long-term analysis.",
+                target="info-period",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("Time Period MA & Bollinger Bands:"),
+            html.Div([
+                html.Label("Time Period MA & Bollinger Bands:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-ma-period", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.RadioItems(id='ma-period-selector', options=[
                 {'label': ' 40M/20M', 'value': '40m20m'},
                 {'label': ' 20M/10M', 'value': '20m10m'}
-            ], value='40m20m', inline=True, style={'marginTop': '5px'})
+            ], value='40m20m', inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Moving Average and Bollinger Band calculation periods. 40M/20M uses 840-day (40 months) long MA "
+                "and 420-day (20 months) short MA. 20M/10M uses half those periods for faster signals but more noise.",
+                target="info-ma-period",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("Scale:"),
+            html.Div([
+                html.Label("Scale:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-scale", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.RadioItems(id='scale-selector', options=[
                 {'label': ' Linear', 'value': 'linear'},
                 {'label': ' Log', 'value': 'log'}
-            ], value='linear', inline=True, style={'marginTop': '5px'})
+            ], value='linear', inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Y-axis scale type. Linear shows equal spacing for equal price changes. "
+                "Log (logarithmic) shows equal spacing for equal percentage changes - better for long-term trends.",
+                target="info-scale",
+                placement="right"
+            ),
         ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
         dbc.Col([
-            html.Label("Flat Long MA Threshold (%):"),
+            html.Div([
+                html.Label("Flat Long MA Threshold (%):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-flat-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='flat-threshold-840', type='number', value=0.025, step=0.005, style={'width': '100%'}),
-            html.Small("Values below this threshold", style={'color': 'gray'})
+            html.Small("Values below this threshold", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "The long MA (40M/20M) is considered 'flat' when its rate of change is below this threshold. "
+                "Lower values = stricter requirement for MA to be flat. Typical range: 0.01-0.05.",
+                target="info-flat-threshold",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("Decreasing Short MA Threshold (%):"),
+            html.Div([
+                html.Label("Decreasing Short MA Threshold (%):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-decreasing-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='flat-threshold-420', type='number', value=0, step=0.005, style={'width': '100%'}),
-            html.Small("Negative values for decreasing", style={'color': 'gray'})
+            html.Small("Negative values for decreasing", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "The short MA (20M/10M) is considered 'decreasing' when its rate of change is below this threshold. "
+                "Use 0 to require any decrease, negative values for stronger decreases. Typical range: -0.05 to 0.05.",
+                target="info-decreasing-threshold",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("BB Distance for Re-Entry (%):"),
+            html.Div([
+                html.Label("BB Distance for Re-Entry (%):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-bb-distance", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='bb-distance-threshold', type='number', value=10, min=0, step=5, style={'width': '100%'}),
-            html.Small("Max distance from lower BB", style={'color': 'gray'})
+            html.Small("Max distance from lower BB", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "Maximum distance from the lower Bollinger Band for a re-entry signal to be valid. "
+                "Signals must occur within this % of the lower BB. Lower values = more restrictive. Typical: 5-15%.",
+                target="info-bb-distance",
+                placement="right"
+            ),
         ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
         dbc.Col([
-            html.Label("Smoothing Window (Daily Exit):"),
+            html.Div([
+                html.Label("Smoothing Window (Daily Exit):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-smoothing", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='smoothing-window', type='number', value=5, min=1, max=20, step=1, style={'width': '100%'}),
-            html.Small("Days for price smoothing", style={'color': 'gray'})
+            html.Small("Days for price smoothing", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "Number of days to smooth the price before detecting crossings in daily view. "
+                "Higher values reduce noise but may delay signals. Lower values are more responsive but noisier. Typical: 3-7 days.",
+                target="info-smoothing",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("MA Condition Lookahead (Daily):"),
+            html.Div([
+                html.Label("MA Condition Lookahead (Daily):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-lookahead", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='daily-lookahead', type='number', value=10, min=0, max=30, step=1, style={'width': '100%'}),
-            html.Small("Days to check MA conditions after crossing", style={'color': 'gray'})
+            html.Small("Days to check MA conditions after crossing", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "Days to look ahead after a crossing to verify MA conditions are met (daily view only). "
+                "Set to 0 to disable. Higher values allow catching signals where conditions develop shortly after crossing. Typical: 5-15 days.",
+                target="info-lookahead",
+                placement="right"
+            ),
         ], width=3),
         dbc.Col([
-            html.Label("MA Condition Threshold (All Views):"),
+            html.Div([
+                html.Label("MA Condition Threshold (All Views):"),
+                html.I(className="bi bi-info-circle ms-1", id="info-ma-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='ma-condition-threshold', type='number', value=0.5, min=0, max=1, step=0.05, style={'width': '100%'}),
-            html.Small("Min % with MA conditions (0=off, 0.5=50%)", style={'color': 'gray'})
+            html.Small("Min % with MA conditions (0=off, 0.5=50%)", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "Minimum percentage of days that must have MA conditions met within the period/lookahead window. "
+                "0 = disabled, 0.5 = 50% of days, 1 = 100% of days. Lower values are more permissive. Typical: 0.4-0.7.",
+                target="info-ma-threshold",
+                placement="right"
+            ),
         ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
         dbc.Col([
-            html.Label("Re-Entry Signals:"),
+            html.Div([
+                html.Label("Re-Entry Signals:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-reentry", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Checklist(id='signal-checklist', options=[
                 {'label': ' Bullish Engulfing', 'value': 'engulfing'},
                 {'label': ' Hammer/Inverted Hammer', 'value': 'hammer'},
                 {'label': ' Morning Star', 'value': 'morning_star'}
-            ], value=['engulfing', 'hammer', 'morning_star'], inline=True, style={'marginTop': '5px'})
+            ], value=['engulfing', 'hammer', 'morning_star'], inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Candlestick patterns that signal potential re-entry points when price is below MA and near lower Bollinger Band. "
+                "Bullish Engulfing: green candle engulfs previous red. Hammer: long lower wick. Morning Star: 3-candle reversal pattern.",
+                target="info-reentry",
+                placement="right"
+            ),
         ], width=6),
     ], className="mb-3"),
     
     dbc.Row([
         dbc.Col([
-            html.Label("Display Zones:"),
+            html.Div([
+                html.Label("Display Zones:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-zones", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Checklist(id='zone-display-checklist', options=[
                 {'label': ' Below MA (Red)', 'value': 'below_ma'},
                 {'label': ' Entry-to-Reentry Complete (Green)', 'value': 'complete_zone'},
                 {'label': ' Entry-to-Reentry Incomplete (Orange)', 'value': 'incomplete_zone'}
-            ], value=['complete_zone'], inline=True, style={'marginTop': '5px'})
+            ], value=['complete_zone'], inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Colored background zones on the chart. Below MA (red): all periods below moving average. "
+                "Entry-to-Reentry Complete (green): zones from exit signal to successful re-entry signal. "
+                "Entry-to-Reentry Incomplete (orange): zones from exit signal where re-entry hasn't occurred yet.",
+                target="info-zones",
+                placement="right"
+            ),
         ], width=12),
     ], className="mb-4"),
 
