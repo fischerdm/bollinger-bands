@@ -581,11 +581,15 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         if period == 'quarterly':
             display_data = data.resample('QE').agg({'Open':'first','High':'max','Low':'min','Close':'last'}).dropna()
             display_label = "Quarterly"
+            # Store original period end dates before offsetting
+            display_data['original_date'] = display_data.index
             # Offset the index to center candles in the middle of each quarter (~45 days back)
             display_data.index = display_data.index - pd.Timedelta(days=45)
         elif period == 'monthly':
             display_data = data.resample('ME').agg({'Open':'first','High':'max','Low':'min','Close':'last'}).dropna()
             display_label = "Monthly"
+            # Store original period end dates before offsetting
+            display_data['original_date'] = display_data.index
             # Offset the index to center candles in the middle of each month (~15 days back)
             display_data.index = display_data.index - pd.Timedelta(days=15)
         else:
@@ -685,7 +689,15 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         print(f"Display data shape: {display_data.shape}")
         
         # Get MA values at the display_data dates from the daily MA
-        ma_at_period_dates = ma_long_values.reindex(display_data.index, method='nearest')
+        # Use original_date if available (for offset monthly/quarterly), otherwise use index
+        if period in ['monthly', 'quarterly'] and 'original_date' in display_data.columns:
+            period_end_dates = display_data['original_date']
+        else:
+            period_end_dates = display_data.index
+            
+        ma_at_period_dates = ma_long_values.reindex(period_end_dates, method='nearest')
+        ma_at_period_dates.index = display_data.index  # Use offset index for plotting
+        
         print(f"MA values at period dates: {len(ma_at_period_dates)} values")
         print(f"MA values NaN count: {ma_at_period_dates.isna().sum()}")
         
@@ -730,15 +742,21 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             
             print(f"Checking MA conditions for {len(crossing_dates)} crossings (threshold={ma_condition_threshold:.0%}):")
             for cross_date in crossing_dates:
-                # Get the period start date
+                # Get the original (non-offset) period end date
+                if 'original_date' in display_data.columns:
+                    original_cross_date = display_data.loc[cross_date, 'original_date']
+                else:
+                    original_cross_date = cross_date
+                
+                # Get the period start date using the original date
                 if period == 'quarterly':
-                    period_start = pd.Timestamp(cross_date.year, ((cross_date.month - 1) // 3) * 3 + 1, 1)
+                    period_start = pd.Timestamp(original_cross_date.year, ((original_cross_date.month - 1) // 3) * 3 + 1, 1)
                 else:  # monthly
-                    period_start = pd.Timestamp(cross_date.year, cross_date.month, 1)
+                    period_start = pd.Timestamp(original_cross_date.year, original_cross_date.month, 1)
                 
                 # Find the actual crossing date in daily data (when price crossed below MA)
                 # Look for the day within the period where crossing occurred
-                period_mask = (data.index >= period_start) & (data.index <= cross_date)
+                period_mask = (data.index >= period_start) & (data.index <= original_cross_date)
                 period_data = data[period_mask]
                 
                 # Find the day when price actually crossed below MA
@@ -756,17 +774,17 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 if crossing_day is not None:
                     # Check MA conditions from crossing day to end of period
                     conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                        cross_date, crossing_day, data, combined_ma_condition, 
+                        original_cross_date, crossing_day, data, combined_ma_condition, 
                         threshold=ma_condition_threshold
                     )
-                    print(f"  {cross_date.date()} (crossing on {crossing_day.date()}, checked {crossing_day.date()} to {cross_date.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                    print(f"  {original_cross_date.date()} (crossing on {crossing_day.date()}, checked {crossing_day.date()} to {original_cross_date.date()}): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
                 else:
                     # Fallback: check the entire period if we can't find exact crossing day
                     conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                        cross_date, period_start, data, combined_ma_condition, 
+                        original_cross_date, period_start, data, combined_ma_condition, 
                         threshold=ma_condition_threshold
                     )
-                    print(f"  {cross_date.date()} (period: {period_start.date()} to {cross_date.date()}, no exact crossing day found): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
+                    print(f"  {original_cross_date.date()} (period: {period_start.date()} to {original_cross_date.date()}, no exact crossing day found): MA conditions {days_met}/{total_days} days ({pct:.1%}) - {'✓ VALID' if conditions_met else '✗ REJECTED'}")
                 
                 if conditions_met:
                     valid_crossings.loc[cross_date] = 1
