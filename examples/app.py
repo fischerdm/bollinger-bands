@@ -265,42 +265,45 @@ app.layout = dbc.Container([
     # Store for target date (hidden)
     dcc.Store(id='target-date-store'),
 
-    dcc.Graph(id='stock-chart', style={'height': '120vh'}),
+    # Main chart with bottom margin to separate from content below
+    dcc.Graph(id='stock-chart', style={'height': '120vh', 'marginBottom': '5rem'}),
     
-    # Relative Strength Section
-    html.Hr(style={'marginTop': '3rem', 'marginBottom': '2rem'}),
-    html.H3("Relative Strength Analysis", style={'textAlign': 'center', 'marginBottom': '2rem'}),
-    
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.Label("Filter by Metric:"),
-                html.I(className="bi bi-info-circle ms-1", id="info-rs-filter", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Dropdown(
-                id='rs-filter-dropdown',
-                options=[
-                    {'label': 'All Tickers', 'value': 'all'},
-                    {'label': '6M Performance > 0%', 'value': '6m_positive'},
-                    {'label': '12M Performance > 0%', 'value': '12m_positive'},
-                    {'label': 'Avg Performance > 0%', 'value': 'avg_positive'},
-                    {'label': 'Levy RS > 0%', 'value': 'levy_positive'},
-                    {'label': '6M Performance < 0%', 'value': '6m_negative'},
-                    {'label': '12M Performance < 0%', 'value': '12m_negative'},
-                ],
-                value='all',
-                style={'width': '100%'}
-            ),
-            dbc.Tooltip(
-                "Filter the ticker list based on performance metrics. "
-                "Show only tickers that meet the selected criteria.",
-                target="info-rs-filter",
-                placement="right"
-            ),
-        ], width=6),
-    ], className="mb-3"),
-    
-    html.Div(id='relative-strength-table', style={'marginTop': '2rem'}),
+    # Relative Strength Section - wrapped in div with extra spacing
+    html.Div([
+        html.Hr(style={'marginTop': '2rem', 'marginBottom': '3rem'}),
+        html.H3("Relative Strength Analysis", style={'textAlign': 'center', 'marginBottom': '2rem'}),
+        
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    html.Label("Filter by Metric:", style={'fontWeight': 'bold'}),
+                    html.I(className="bi bi-info-circle ms-1", id="info-rs-filter", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '0.5rem'}),
+                dcc.Dropdown(
+                    id='rs-filter-dropdown',
+                    options=[
+                        {'label': 'All Tickers', 'value': 'all'},
+                        {'label': '6M Performance > 0%', 'value': '6m_positive'},
+                        {'label': '12M Performance > 0%', 'value': '12m_positive'},
+                        {'label': 'Avg Performance > 0%', 'value': 'avg_positive'},
+                        {'label': 'Levy RS > 0%', 'value': 'levy_positive'},
+                        {'label': '6M Performance < 0%', 'value': '6m_negative'},
+                        {'label': '12M Performance < 0%', 'value': '12m_negative'},
+                    ],
+                    value='all',
+                    style={'width': '100%'}
+                ),
+                dbc.Tooltip(
+                    "Filter the ticker list based on performance metrics. "
+                    "Show only tickers that meet the selected criteria.",
+                    target="info-rs-filter",
+                    placement="right"
+                ),
+            ], width=6),
+        ], className="mb-4"),
+        
+        html.Div(id='relative-strength-table'),
+    ], style={'paddingTop': '3rem'}),
     
 ], fluid=True, className="p-4")
 
@@ -615,6 +618,11 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             ma_condition_threshold=ma_condition_threshold, period=period
         )
         
+        print(f"DEBUG: Total entry zones found: {len(entry_zones)}")
+        if len(entry_zones) > 0:
+            for i, zone in enumerate(entry_zones[:3]):
+                print(f"  Zone {i+1}: {zone['start'].date()} to {zone['end'].date()}, completed={zone['completed']}")
+        
         # Plot
         plotter = Plotter()
         fig = plotter.plot_candlestick(display_data, name=selected_ticker)
@@ -828,7 +836,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         
         fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False, showticklabels=True)
-        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=False, showticklabels=True)
+        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=True, showticklabels=True)
         
         y_type = 'log' if scale == 'log' else 'linear'
         fig_with_bandwidth.update_yaxes(title_text="Price", type=y_type, autorange=True, row=1, col=1)
