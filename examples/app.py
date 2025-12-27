@@ -239,6 +239,21 @@ app.layout = dbc.Container([
                 placement="right"
             ),
         ], width=6),
+        dbc.Col([
+            html.Div([
+                html.Label("Max Re-Entry Signals per Zone:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-max-signals", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+            dcc.Input(id='max-reentry-signals', type='number', value=1, min=1, max=20, step=1, style={'width': '100%'}),
+            html.Small("Zone ends after N signals (1=first signal)", style={'color': 'gray'}),
+            dbc.Tooltip(
+                "Number of re-entry signals to wait for before completing the zone. "
+                "1 = zone ends at first signal (default). 3 = wait for 3rd signal. "
+                "Higher values mean longer zones but may filter out false signals.",
+                target="info-max-signals",
+                placement="right"
+            ),
+        ], width=3),
     ], className="mb-3"),
     
     dbc.Row([
@@ -470,11 +485,12 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
      Input('flat-threshold-840', 'value'), Input('flat-threshold-420', 'value'),
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
      Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
-     Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value')]
+     Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value'),
+     Input('max-reentry-signals', 'value')]
 )
 def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
-                ma_condition_threshold, daily_lookahead):
+                ma_condition_threshold, daily_lookahead, max_reentry_signals):
     try:
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
@@ -502,6 +518,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         smoothing_window = smoothing_window or 5
         ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
         daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
+        max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
         
         # MA/BB windows
         if ma_period == '20m10m':
@@ -720,7 +737,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
-            ma_condition_threshold=ma_condition_threshold, period=period
+            ma_condition_threshold=ma_condition_threshold, period=period,
+            max_reentry_signals=max_reentry_signals
         )
         
         print(f"DEBUG: Total entry zones found: {len(entry_zones)}")
