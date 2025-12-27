@@ -610,12 +610,44 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 
                 price_crossing = valid_crossings
         else:
+            # Debug MA alignment for monthly/quarterly
+            print(f"\n=== MA ALIGNMENT DEBUG ({period}) ===")
+            print(f"display_data index (first 5): {display_data.index[:5].tolist()}")
+            print(f"display_data Open (first 5): {display_data['Open'][:5].tolist()}")
+            print(f"display_data Close (first 5): {display_data['Close'][:5].tolist()}")
+            if 'original_date' in display_data.columns:
+                print(f"original_date (first 5): {display_data['original_date'][:5].tolist()}")
+                print(f"period_end_dates (first 5): {period_end_dates[:5].tolist()}")
+            print(f"ma_at_period_dates index (first 5): {ma_at_period_dates.index[:5].tolist()}")
+            print(f"ma_at_period_dates values (first 5): {ma_at_period_dates[:5].tolist()}")
+            
+            # Check if indices match
+            indices_match = (display_data.index == ma_at_period_dates.index).all()
+            print(f"\nIndices match: {indices_match}")
+            
+            # Check sample comparisons
+            print(f"\nSample comparisons (first 10 periods):")
+            for i in range(min(10, len(display_data))):
+                d_open = display_data['Open'].iloc[i]
+                d_close = display_data['Close'].iloc[i]
+                ma_val = ma_at_period_dates.iloc[i]
+                crosses = (d_open >= ma_val and d_close < ma_val)
+                period_date = display_data.index[i]
+                print(f"  {period_date.date()}: Open={d_open:.2f}, Close={d_close:.2f}, MA={ma_val:.2f}, Crosses={crosses}")
+            
+            # Count how many periods meet the crossing condition
+            crossing_count = ((display_data['Open'] >= ma_at_period_dates) & (display_data['Close'] < ma_at_period_dates)).sum()
+            print(f"\nTotal periods with Open >= MA and Close < MA: {crossing_count}")
+            
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
         
         # For monthly/quarterly: filter crossings by MA conditions
         if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
             crossing_dates = display_data.index[price_crossing == 1]
             valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
+            
+            print(f"\n=== FILTERING CROSSINGS BY MA CONDITIONS ===")
+            print(f"Found {len(crossing_dates)} initial crossings, checking MA conditions (threshold={ma_condition_threshold:.0%}):")
             
             for cross_date in crossing_dates:
                 if 'original_date' in display_data.columns:
@@ -628,17 +660,63 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 else:
                     period_start = pd.Timestamp(original_cross_date.year, original_cross_date.month, 1)
                 
-                conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                    original_cross_date, period_start, data, combined_ma_condition, 
-                    threshold=ma_condition_threshold
-                )
+                # Find the actual crossing date in daily data (when price crossed below MA)
+                # Look for the day within the period where crossing occurred
+                period_mask = (data.index >= period_start) & (data.index <= original_cross_date)
+                period_data = data[period_mask]
+                
+                # Find the day when price actually crossed below MA
+                is_below = period_data['Close'] < ma_long_values[period_mask]
+                is_above = period_data['Close'] >= ma_long_values[period_mask]
+                
+                # Find transition from above to below
+                crossing_day = None
+                for i in range(1, len(is_below)):
+                    if is_above.iloc[i-1] and is_below.iloc[i]:
+                        crossing_day = period_data.index[i]
+                        break
+                
+                # If we found the crossing day, check MA conditions from that day forward
+                if crossing_day is not None:
+                    # Check MA conditions from crossing day to end of period
+                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                        original_cross_date, crossing_day, data, combined_ma_condition, 
+                        threshold=ma_condition_threshold
+                    )
+                    status = '✓ ACCEPTED' if conditions_met else '✗ REJECTED'
+                    print(f"  {original_cross_date.date()} (crossing on {crossing_day.date()}, checked {crossing_day.date()} to {original_cross_date.date()}): "
+                          f"MA conditions {days_met}/{total_days} days ({pct:.1%}) - {status}")
+                else:
+                    # Fallback: check the entire period if we can't find exact crossing day
+                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
+                        original_cross_date, period_start, data, combined_ma_condition, 
+                        threshold=ma_condition_threshold
+                    )
+                    status = '✓ ACCEPTED' if conditions_met else '✗ REJECTED'
+                    print(f"  {original_cross_date.date()} (period: {period_start.date()} to {original_cross_date.date()}, no exact crossing day found): "
+                          f"MA conditions {days_met}/{total_days} days ({pct:.1%}) - {status}")
                 
                 if conditions_met:
                     valid_crossings.loc[cross_date] = 1
             
+            print(f"Crossings after MA filter: {valid_crossings.sum()} (rejected {len(crossing_dates) - valid_crossings.sum()})")
             price_crossing = valid_crossings
         
         # Identify entry zones
+        print(f"\n=== ZONE DETECTION DEBUG ({selected_ticker}, {period}) ===")
+        print(f"Price crossings: {price_crossing.sum()}")
+        if price_crossing.sum() > 0:
+            crossing_dates = display_data.index[price_crossing == 1]
+            print(f"Crossing dates: {[d.date() for d in crossing_dates[:5]]}")
+        
+        print(f"Re-entry signals: {reentry_signals.sum()}")
+        if reentry_signals.sum() > 0:
+            reentry_dates = data.index[reentry_signals]
+            print(f"Re-entry dates: {[d.date() for d in reentry_dates[:5]]}")
+        
+        print(f"Days below MA: {(data['Close'] < ma_long_values).sum()}")
+        print(f"Days with MA conditions: {combined_ma_condition.sum()}")
+        
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
@@ -649,6 +727,16 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         if len(entry_zones) > 0:
             for i, zone in enumerate(entry_zones[:3]):
                 print(f"  Zone {i+1}: {zone['start'].date()} to {zone['end'].date()}, completed={zone['completed']}")
+        else:
+            print(f"  NO ZONES FOUND - investigating why...")
+            if price_crossing.sum() == 0:
+                print(f"    Reason: No price crossings detected")
+            elif reentry_signals.sum() == 0:
+                print(f"    Reason: No re-entry signals detected")
+            elif (data['Close'] < ma_long_values).sum() == 0:
+                print(f"    Reason: Price never below MA")
+            elif combined_ma_condition.sum() == 0:
+                print(f"    Reason: MA conditions never met")
         
         # Plot
         plotter = Plotter()
