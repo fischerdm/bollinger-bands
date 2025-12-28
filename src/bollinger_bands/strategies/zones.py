@@ -74,7 +74,10 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
                 break
         
         if zone_active_date is None:
+            print(f"  Exit {exit_signal.date()}: Zone never became active (MA conditions never met)")
             continue  # Exit signal never became active
+        
+        print(f"  Exit {exit_signal.date()}: Zone active from {zone_active_date.date()}")
         
         # Find GREEN pattern: First Nth candlestick signal after THIS exit signal
         # Important: Start looking from the exit signal, not from zone_active_date
@@ -104,21 +107,51 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             })
             print(f"  Green pattern: {exit_signal.date()} → {green_end.date()} (signals: {[s.date() for s in collected_signals]})")
         
-        # Find ORANGE pattern: First MA crossing up after zone active
+        # Find ORANGE pattern: First MA crossing up
+        # For monthly/quarterly: use period-end data (display_data)
+        # For daily: use daily data
         orange_end = None
-        for i in range(len(data)):
-            if data.index[i] < zone_active_date:
-                continue
-            
-            current_date = data.index[i]
-            
-            # Check if price crossed back above MA
-            if not is_below.iloc[i]:
-                orange_end = data.index[i-1] if i > 0 else current_date
-                break
         
-        if orange_end and (not green_end or orange_end < green_end):
-            # Only create orange if it ends before green (or no green exists)
+        if period in ['monthly', 'quarterly']:
+            # Use display_data (aggregated periods) for MA crossing detection
+            # Find the period where close is above MA
+            for i in range(len(display_data)):
+                period_date = display_data.index[i]
+                
+                if period_date <= exit_signal:
+                    continue
+                
+                # Get MA value at this period's end date
+                if 'original_date' in display_data.columns:
+                    actual_date = display_data.loc[period_date, 'original_date']
+                else:
+                    actual_date = period_date
+                
+                # Find MA value at this date
+                ma_at_date = ma_values.reindex([actual_date], method='nearest').iloc[0]
+                period_close = display_data.loc[period_date, 'Close']
+                
+                # If close is above MA, we've crossed back
+                if period_close >= ma_at_date:
+                    orange_end = actual_date
+                    print(f"    Found MA crossing: period {period_date.date()}, close {period_close:.2f} >= MA {ma_at_date:.2f}, zone ends {orange_end.date()}")
+                    break
+        else:
+            # Daily: look at daily data
+            for i in range(len(data)):
+                if data.index[i] <= exit_signal:
+                    continue
+                
+                current_date = data.index[i]
+                
+                # Check if price is above MA
+                if data['Close'].iloc[i] >= ma_values.iloc[i]:
+                    orange_end = current_date
+                    print(f"    Found MA crossing: price above MA at {current_date.date()}, zone ends {orange_end.date()}")
+                    break
+        
+        if orange_end:
+            # Always create orange pattern (strategy will decide which to use)
             all_orange_patterns.append({
                 'exit_signal': exit_signal,
                 'start': exit_signal,
@@ -129,6 +162,16 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             print(f"  Orange pattern: {exit_signal.date()} → {orange_end.date()}")
     
     print(f"\nPatterns detected: {len(all_green_patterns)} green, {len(all_orange_patterns)} orange")
+    
+    if all_green_patterns:
+        print("\nGREEN PATTERNS:")
+        for i, p in enumerate(all_green_patterns, 1):
+            print(f"  {i}. Exit {p['exit_signal'].date()} → End {p['end'].date()}")
+    
+    if all_orange_patterns:
+        print("\nORANGE PATTERNS:")
+        for i, p in enumerate(all_orange_patterns, 1):
+            print(f"  {i}. Exit {p['exit_signal'].date()} → End {p['end'].date()}")
     
     # PHASE 2: APPLY STRATEGY
     print(f"\n=== PHASE 2: STRATEGY APPLICATION ===")
@@ -161,3 +204,4 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             print(f"{i}. {z['exit_signal'].strftime('%Y-%m-%d')} → {z['end'].strftime('%Y-%m-%d')}")
     
     return zones
+    

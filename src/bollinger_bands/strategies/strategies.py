@@ -188,13 +188,8 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data, max_reen
                 'pattern': pattern
             })
     
-    # Add MA crossings as fallback (if not enough candlestick signals)
-    for pattern in all_orange_patterns:
-        events.append({
-            'date': pattern['end'],
-            'type': 'reentry_ma_crossing',
-            'pattern': pattern
-        })
+    # Green strategy does NOT use MA crossings - only candlesticks
+    # If not enough candlesticks, zone remains incomplete
     
     # Sort events chronologically
     events.sort(key=lambda e: e['date'])
@@ -225,14 +220,9 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data, max_reen
             zone = state_machine.process_reentry_signal(event['date'], signal_type='candlestick')
             if zone:
                 valid_zones.append(zone)
-                
-        elif event['type'] == 'reentry_ma_crossing':
-            # Fallback: if we haven't collected enough candlestick signals,
-            # complete the zone as orange when price crosses back above MA
-            if state_machine.state == 'OUT_OF_MARKET' and len(state_machine.collected_signals) < state_machine.max_reentry_signals:
-                zone = state_machine.process_reentry_signal(event['date'], signal_type='ma_crossing')
-                if zone:
-                    valid_zones.append(zone)
+        
+        # Green strategy does NOT use MA crossings at all
+        # If not enough candlesticks, zone stays incomplete
     
     # Finalize any incomplete zone
     incomplete_zone = state_machine.finalize(data.index[-1], strategy_type='green')
@@ -267,11 +257,12 @@ def apply_orange_strategy(all_green_patterns, all_orange_patterns, data, max_ree
     """
     print(f"\n=== APPLYING ORANGE STRATEGY ===")
     print(f"Input: {len(all_green_patterns)} green patterns, {len(all_orange_patterns)} orange patterns")
-    print(f"Max re-entry signals per zone (candlesticks): {max_reentry_signals}")
+    print(f"Orange strategy: Taking FIRST signal (MA crossing OR candlestick)")
     
     # Initialize state machine (start IN_MARKET)
-    # Note: For MA crossings, we'll override to 1 signal
-    state_machine = TradingStateMachine(initial_state='IN_MARKET', max_reentry_signals=max_reentry_signals)
+    # Orange strategy is myopic: take the FIRST signal regardless of type
+    # So we always use max_reentry_signals=1
+    state_machine = TradingStateMachine(initial_state='IN_MARKET', max_reentry_signals=1)
     
     # Collect all events with their dates
     events = []
@@ -334,18 +325,22 @@ def apply_orange_strategy(all_green_patterns, all_orange_patterns, data, max_ree
     valid_zones = []
     
     for event in unique_events:
+        event_date_str = event['date'].strftime('%Y-%m-%d')
+        
         if event['type'] == 'exit':
             # Try to process exit signal
             is_valid = state_machine.process_exit_signal(event['date'])
             
         elif event['type'] == 'reentry_candlestick':
-            # Try to process re-entry signal (candlestick)
+            # For orange strategy: take first candlestick (myopic)
+            print(f"  Processing candlestick signal at {event_date_str} (state={state_machine.state})")
             zone = state_machine.process_reentry_signal(event['date'], signal_type='candlestick')
             if zone:
                 valid_zones.append(zone)
                 
         elif event['type'] == 'reentry_ma_crossing':
-            # Try to process re-entry signal (MA crossing)
+            # For orange strategy: take first MA crossing (myopic)
+            print(f"  Processing MA crossing at {event_date_str} (state={state_machine.state})")
             zone = state_machine.process_reentry_signal(event['date'], signal_type='ma_crossing')
             if zone:
                 valid_zones.append(zone)
