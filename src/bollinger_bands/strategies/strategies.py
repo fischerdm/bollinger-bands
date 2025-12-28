@@ -80,21 +80,25 @@ class TradingStateMachine:
             print(f"  Re-entry signal at {reentry_date.date()}: IGNORED (state={self.state})")
             return None
     
-    def finalize(self, last_date):
+    def finalize(self, last_date, strategy_type='green'):
         """
         Finalize any incomplete zones at the end of data.
         
         Args:
             last_date: Last date in the dataset
+            strategy_type: 'green' or 'orange' strategy
             
         Returns:
             dict or None: Incomplete zone if one exists, None otherwise
         """
         if self.state == 'OUT_OF_MARKET' and self.current_zone_start is not None:
+            # Incomplete zones are always 'orange' type (waiting for re-entry)
+            # In green strategy: waiting for candlestick
+            # In orange strategy: waiting for either MA crossing or candlestick
             zone = {
                 'start': self.current_zone_start,
                 'end': last_date,
-                'type': 'orange',
+                'type': 'orange',  # Always orange for incomplete
                 'completed': False,
                 'exit_signal': self.current_zone_start,
                 'reentry_signals': []
@@ -186,7 +190,7 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
                 valid_zones.append(zone)
     
     # Finalize any incomplete zone
-    incomplete_zone = state_machine.finalize(data.index[-1])
+    incomplete_zone = state_machine.finalize(data.index[-1], strategy_type='green')
     if incomplete_zone:
         valid_zones.append(incomplete_zone)
     
@@ -297,7 +301,7 @@ def apply_orange_strategy(all_green_patterns, all_orange_patterns, data):
                 valid_zones.append(zone)
     
     # Finalize any incomplete zone
-    incomplete_zone = state_machine.finalize(data.index[-1])
+    incomplete_zone = state_machine.finalize(data.index[-1], strategy_type='orange')
     if incomplete_zone:
         valid_zones.append(incomplete_zone)
     

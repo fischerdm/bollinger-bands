@@ -264,13 +264,13 @@ app.layout = dbc.Container([
             ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Checklist(id='zone-display-checklist', options=[
                 {'label': ' Below MA (Red)', 'value': 'below_ma'},
-                {'label': ' Entry-to-Reentry Complete (Green)', 'value': 'complete_zone'},
-                {'label': ' Entry-to-Reentry Incomplete (Orange)', 'value': 'incomplete_zone'}
+                {'label': ' Entry-to-Reentry Candlestick (Green)', 'value': 'complete_zone'},
+                {'label': ' Entry-to-Reentry MA crossing (Orange)', 'value': 'incomplete_zone'}
             ], value=['complete_zone'], inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
                 "Colored background zones on the chart. Below MA (red): all periods below moving average. "
-                "Entry-to-Reentry Complete (green): zones from exit signal to successful re-entry signal. "
-                "Entry-to-Reentry Incomplete (orange): zones from exit signal where re-entry hasn't occurred yet.",
+                "Entry-to-Reentry Candlestick (green): zones from exit signal to candlestick re-entry signal. "
+                "Entry-to-Reentry MA crossing (orange): zones from exit signal to MA crossing re-entry.",
                 target="info-zones",
                 placement="right"
             ),
@@ -281,12 +281,12 @@ app.layout = dbc.Container([
                 html.I(className="bi bi-info-circle ms-1", id="info-strategy", style={'cursor': 'pointer', 'color': '#6c757d'}),
             ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.RadioItems(id='strategy-selector', options=[
-                {'label': ' Green (Candlestick only)', 'value': 'green'},
-                {'label': ' Orange (MA crossing + Candlestick)', 'value': 'orange'}
+                {'label': ' Candlesticks only (Green)', 'value': 'green'},
+                {'label': ' MA crossing + Candlestick (Orange and green)', 'value': 'orange'}
             ], value='green', inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
-                "Green Strategy: Re-enter only at candlestick signals (conservative). "
-                "Orange Strategy: Re-enter at either MA crossing or candlestick signal, whichever comes first (aggressive).",
+                "Candlesticks only (Green): Re-enter only at candlestick signals (conservative). "
+                "MA crossing + Candlestick (Orange and green): Re-enter at either MA crossing (orange zones) or candlestick signal (green zones), whichever comes first (aggressive).",
                 target="info-strategy",
                 placement="right"
             ),
@@ -809,7 +809,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         for zone in entry_zones:
             zone_data = data.loc[zone['start']:zone['end']]
             
-            if zone['completed'] and 'complete_zone' in display_zones:
+            # Green zones: candlestick re-entry (type='green')
+            if zone['type'] == 'green' and 'complete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
                               line=dict(width=0), showlegend=False, hoverinfo='skip'), 
@@ -818,11 +819,12 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=zone_data['Close'], mode='lines', 
                               fill='tonexty', fillcolor='rgba(100,200,100,0.3)', 
-                              line=dict(width=0), name='Complete Zone', showlegend=False, 
+                              line=dict(width=0), name='Candlestick Zone', showlegend=False, 
                               hoverinfo='skip'), 
                     row=1, col=1
                 )
-            elif not zone['completed'] and 'incomplete_zone' in display_zones:
+            # Orange zones: MA crossing re-entry (type='orange')
+            elif zone['type'] == 'orange' and 'incomplete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
                               line=dict(width=0), showlegend=False, hoverinfo='skip'), 
@@ -831,7 +833,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=zone_data['Close'], mode='lines', 
                               fill='tonexty', fillcolor='rgba(255,200,100,0.3)', 
-                              line=dict(width=0), name='Incomplete Zone', showlegend=False, 
+                              line=dict(width=0), name='MA Crossing Zone', showlegend=False, 
                               hoverinfo='skip'), 
                     row=1, col=1
                 )
