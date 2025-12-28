@@ -783,7 +783,53 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         
         # Plot
         plotter = Plotter()
-        fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        
+        # Don't use the simple plot - we'll create custom candlesticks with zone shading
+        # fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        
+        # Create a figure to hold our custom candlesticks
+        plotter.fig = go.Figure()
+        
+        # Determine which periods are "out of market" (in a zone)
+        out_of_market = pd.Series(False, index=display_data.index)
+        for zone in entry_zones:
+            # Mark all dates in this zone as "out of market"
+            zone_mask = (display_data.index >= zone['start']) & (display_data.index <= zone['end'])
+            out_of_market = out_of_market | zone_mask
+        
+        # Split data into in-market and out-of-market segments
+        in_market_data = display_data[~out_of_market]
+        out_market_data = display_data[out_of_market]
+        
+        # Plot in-market candlesticks (normal opacity)
+        if len(in_market_data) > 0:
+            plotter.fig.add_trace(go.Candlestick(
+                x=in_market_data.index,
+                open=in_market_data['Open'],
+                high=in_market_data['High'],
+                low=in_market_data['Low'],
+                close=in_market_data['Close'],
+                name='In Market',
+                increasing_line_color='green',
+                decreasing_line_color='red',
+                showlegend=True
+            ))
+        
+        # Plot out-of-market candlesticks (shaded/muted)
+        if len(out_market_data) > 0:
+            plotter.fig.add_trace(go.Candlestick(
+                x=out_market_data.index,
+                open=out_market_data['Open'],
+                high=out_market_data['High'],
+                low=out_market_data['Low'],
+                close=out_market_data['Close'],
+                name='Out of Market',
+                increasing_line_color='rgba(0, 128, 0, 0.3)',  # Muted green
+                decreasing_line_color='rgba(255, 0, 0, 0.3)',  # Muted red
+                increasing_fillcolor='rgba(0, 128, 0, 0.1)',
+                decreasing_fillcolor='rgba(255, 0, 0, 0.1)',
+                showlegend=True
+            ))
         
         plotter.add_moving_average(ma_long_filt)
         plotter.add_bollinger_bands(bb_long_filt, name_prefix=f'BB {period_label.split("/")[0]}', dashed=False)
@@ -797,7 +843,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.1, 
             row_heights=[0.6, 0.2, 0.2],
             subplot_titles=(
-                f"{ticker_name} ({display_label} Candles, {period_label} MA/BB)", 
+                f"{ticker_name} ({display_label} Candles, {period_label} MA/BB) - Shaded = Out of Market", 
                 f"Band Width ({long_name} BB)", 
                 "Exit Signals: MA Change & Price Crossing"
             ),
