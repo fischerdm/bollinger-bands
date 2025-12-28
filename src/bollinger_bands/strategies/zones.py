@@ -6,6 +6,7 @@ This module handles identification of trading zones (entry to re-entry).
 
 import pandas as pd
 from bollinger_bands.indicators.crossing_detection import check_ma_conditions_for_period
+from bollinger_bands.strategies.strategies import apply_green_strategy, apply_orange_strategy
 
 
 def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, ma_condition_threshold=0.5, period='daily', max_reentry_signals=1, allow_reentry_at_ma=False):
@@ -128,30 +129,22 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
     
     # PHASE 2: APPLY STRATEGY
     print(f"\n=== PHASE 2: STRATEGY APPLICATION ===")
-    print(f"Strategy: {'Use MA crossings (orange)' if allow_reentry_at_ma else 'Candlestick only (green)'}")
-    
-    # TODO: Implement state machine for strategy
-    # For now, just return all patterns
     
     if allow_reentry_at_ma:
-        # Strategy: Accept both green and orange zones
-        zones = all_green_patterns + all_orange_patterns
+        # Orange strategy: Accept MA crossings + candlestick signals
+        zones = apply_orange_strategy(all_green_patterns, all_orange_patterns, data)
     else:
-        # Strategy: Only green zones (candlestick signals)
-        zones = all_green_patterns
+        # Green strategy: Only candlestick signals
+        zones = apply_green_strategy(all_green_patterns, all_orange_patterns, data)
     
+    # Sort by start date
     zones.sort(key=lambda z: z['start'])
     
-    # Convert to expected format
+    # Separate for display
     green_zones = [z for z in zones if z['type'] == 'green']
     orange_zones = [z for z in zones if z['type'] == 'orange']
     
-    # Add completed flag
-    for z in zones:
-        z['completed'] = (z['type'] == 'green')
-        z['reentry_signals'] = z.pop('signals', [])
-    
-    print(f"\nZones after strategy: {len(green_zones)} green, {len(orange_zones)} orange")
+    print(f"\nFinal zones: {len(green_zones)} green, {len(orange_zones)} orange")
     
     if green_zones:
         print(f"\n=== GREEN ZONES ===")
