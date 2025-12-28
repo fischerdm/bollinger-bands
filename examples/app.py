@@ -266,7 +266,7 @@ app.layout = dbc.Container([
                 {'label': ' Below MA (Red)', 'value': 'below_ma'},
                 {'label': ' Exit-to-Reentry Candlestick (Green)', 'value': 'complete_zone'},
                 {'label': ' Exit-to-Reentry MA crossing (Orange)', 'value': 'incomplete_zone'}
-            ], value=['complete_zone'], inline=True, style={'marginTop': '5px'}),
+            ], value=['complete_zone', 'incomplete_zone'], inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
                 "Colored background zones on the chart. Below MA (red): all periods below moving average. "
                 "Exit-to-Reentry Candlestick (green): zones from exit signal to candlestick re-entry signal. "
@@ -283,7 +283,7 @@ app.layout = dbc.Container([
             dcc.RadioItems(id='strategy-selector', options=[
                 {'label': ' Candlesticks only (Green)', 'value': 'green'},
                 {'label': ' MA crossing + Candlestick (Orange and green)', 'value': 'orange'}
-            ], value='green', inline=True, style={'marginTop': '5px'}),
+            ], value='orange', inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
                 "Candlesticks only (Green): Re-enter only at candlestick signals (conservative). "
                 "MA crossing + Candlestick (Orange and green): Re-enter at either MA crossing (orange zones) or candlestick signal (green zones), whichever comes first (aggressive).",
@@ -539,7 +539,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
         daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
-        strategy = strategy or 'green'
+        strategy = strategy or 'orange'
         
         # MA/BB windows
         if ma_period == '20m10m':
