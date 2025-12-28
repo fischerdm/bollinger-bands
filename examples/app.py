@@ -274,7 +274,23 @@ app.layout = dbc.Container([
                 target="info-zones",
                 placement="right"
             ),
-        ], width=12),
+        ], width=8),
+        dbc.Col([
+            html.Div([
+                html.Label("Trading Strategy:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-strategy", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+            dcc.RadioItems(id='strategy-selector', options=[
+                {'label': ' Green (Candlestick only)', 'value': 'green'},
+                {'label': ' Orange (MA crossing + Candlestick)', 'value': 'orange'}
+            ], value='green', inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Green Strategy: Re-enter only at candlestick signals (conservative). "
+                "Orange Strategy: Re-enter at either MA crossing or candlestick signal, whichever comes first (aggressive).",
+                target="info-strategy",
+                placement="right"
+            ),
+        ], width=4),
     ], className="mb-4"),
 
     # Store for target date (hidden)
@@ -486,11 +502,11 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
      Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
      Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value'),
-     Input('max-reentry-signals', 'value')]
+     Input('max-reentry-signals', 'value'), Input('strategy-selector', 'value')]
 )
 def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
-                ma_condition_threshold, daily_lookahead, max_reentry_signals):
+                ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
     try:
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
@@ -519,6 +535,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
         daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
+        strategy = strategy or 'green'
         
         # MA/BB windows
         if ma_period == '20m10m':
@@ -719,6 +736,9 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             print(f"Crossings after MA filter: {valid_crossings.sum()} (rejected {len(crossing_dates) - valid_crossings.sum()})")
             price_crossing = valid_crossings
         
+        # Convert strategy selector to allow_reentry_at_ma parameter
+        allow_reentry_at_ma = (strategy == 'orange')
+        
         # Identify entry zones
         print(f"\n=== ZONE DETECTION DEBUG ({selected_ticker}, {period}) ===")
         print(f"Price crossings: {price_crossing.sum()}")
@@ -738,7 +758,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
             ma_condition_threshold=ma_condition_threshold, period=period,
-            max_reentry_signals=max_reentry_signals
+            max_reentry_signals=max_reentry_signals,
+            allow_reentry_at_ma=allow_reentry_at_ma
         )
         
         print(f"DEBUG: Total entry zones found: {len(entry_zones)}")
