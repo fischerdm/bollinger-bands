@@ -264,13 +264,13 @@ app.layout = dbc.Container([
             ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Checklist(id='zone-display-checklist', options=[
                 {'label': ' Below MA (Red)', 'value': 'below_ma'},
-                {'label': ' Entry-to-Reentry Candlestick (Green)', 'value': 'complete_zone'},
-                {'label': ' Entry-to-Reentry MA crossing (Orange)', 'value': 'incomplete_zone'}
+                {'label': ' Exit-to-Reentry Candlestick (Green)', 'value': 'complete_zone'},
+                {'label': ' Exit-to-Reentry MA crossing (Orange)', 'value': 'incomplete_zone'}
             ], value=['complete_zone'], inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
                 "Colored background zones on the chart. Below MA (red): all periods below moving average. "
-                "Entry-to-Reentry Candlestick (green): zones from exit signal to candlestick re-entry signal. "
-                "Entry-to-Reentry MA crossing (orange): zones from exit signal to MA crossing re-entry.",
+                "Exit-to-Reentry Candlestick (green): zones from exit signal to candlestick re-entry signal. "
+                "Exit-to-Reentry MA crossing (orange): zones from exit signal to MA crossing re-entry.",
                 target="info-zones",
                 placement="right"
             ),
