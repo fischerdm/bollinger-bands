@@ -508,6 +508,10 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
                 ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
     try:
+        # Safety check: if ticker is None, use default
+        if selected_ticker is None:
+            selected_ticker = 'EEM'
+        
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
             data.attrs['ticker'] = selected_ticker

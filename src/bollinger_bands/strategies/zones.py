@@ -76,16 +76,19 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
         if zone_active_date is None:
             continue  # Exit signal never became active
         
-        # Find GREEN pattern: First Nth candlestick signal after zone active
+        # Find GREEN pattern: First Nth candlestick signal after THIS exit signal
+        # Important: Start looking from the exit signal, not from zone_active_date
+        # This ensures each exit finds its own unique set of signals
         collected_signals = []
         green_end = None
         for i in range(len(data)):
-            if data.index[i] < zone_active_date:
+            if data.index[i] <= exit_signal:  # Must be AFTER the exit signal
                 continue
             
             current_date = data.index[i]
             
-            if reentry_signals.iloc[i]:
+            # Only collect signals that happen after zone became active
+            if current_date >= zone_active_date and reentry_signals.iloc[i]:
                 collected_signals.append(current_date)
                 if len(collected_signals) >= max_reentry_signals:
                     green_end = current_date
@@ -132,10 +135,10 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
     
     if allow_reentry_at_ma:
         # Orange strategy: Accept MA crossings + candlestick signals
-        zones = apply_orange_strategy(all_green_patterns, all_orange_patterns, data)
+        zones = apply_orange_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=max_reentry_signals)
     else:
         # Green strategy: Only candlestick signals
-        zones = apply_green_strategy(all_green_patterns, all_orange_patterns, data)
+        zones = apply_green_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=max_reentry_signals)
     
     # Sort by start date
     zones.sort(key=lambda z: z['start'])

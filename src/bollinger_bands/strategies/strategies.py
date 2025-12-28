@@ -22,10 +22,12 @@ class TradingStateMachine:
     - OUT → IN: When re-entry signal triggered (candlestick pattern or MA crossing)
     """
     
-    def __init__(self, initial_state='IN_MARKET'):
+    def __init__(self, initial_state='IN_MARKET', max_reentry_signals=1):
         self.state = initial_state
         self.current_zone_start = None
         self.active_zones = []
+        self.max_reentry_signals = max_reentry_signals
+        self.collected_signals = []  # Track signals in current zone
     
     def process_exit_signal(self, exit_date):
         """
@@ -41,6 +43,7 @@ class TradingStateMachine:
             # Valid exit - we're in the market
             self.state = 'OUT_OF_MARKET'
             self.current_zone_start = exit_date
+            self.collected_signals = []  # Reset signal counter
             print(f"  Exit signal at {exit_date.date()}: IN_MARKET → OUT_OF_MARKET")
             return True
         else:
@@ -57,24 +60,44 @@ class TradingStateMachine:
             signal_type: Type of signal ('candlestick' or 'ma_crossing')
             
         Returns:
-            dict or None: Completed zone if signal is valid, None otherwise
+            dict or None: Completed zone if we've collected enough signals, None otherwise
         """
         if self.state == 'OUT_OF_MARKET' and self.current_zone_start is not None:
-            # Valid re-entry - we're out and have an active zone
-            zone = {
-                'start': self.current_zone_start,
-                'end': reentry_date,
-                'type': 'green' if signal_type == 'candlestick' else 'orange',
-                'completed': True,
-                'exit_signal': self.current_zone_start,
-                'reentry_signals': [reentry_date]
-            }
+            # We're out and have an active zone
             
-            self.state = 'IN_MARKET'
-            self.current_zone_start = None
-            print(f"  Re-entry signal at {reentry_date.date()}: OUT_OF_MARKET → IN_MARKET (zone completed)")
+            # Only add if we haven't seen this signal date already
+            # Check by comparing the actual date values
+            already_seen = any(existing.date() == reentry_date.date() for existing in self.collected_signals)
+            if not already_seen:
+                self.collected_signals.append(reentry_date)
+                print(f"  Re-entry signal #{len(self.collected_signals)} at {reentry_date.date()}: Collecting (need {self.max_reentry_signals})")
+            else:
+                print(f"  Re-entry signal at {reentry_date.date()}: DUPLICATE (already in list)")
             
-            return zone
+            # MA crossings complete immediately, candlesticks wait for N signals
+            required_signals = 1 if signal_type == 'ma_crossing' else self.max_reentry_signals
+            
+            # Check if we've collected enough signals
+            if len(self.collected_signals) >= required_signals:
+                # Zone complete!
+                zone = {
+                    'start': self.current_zone_start,
+                    'end': reentry_date,
+                    'type': 'green' if signal_type == 'candlestick' else 'orange',
+                    'completed': True,
+                    'exit_signal': self.current_zone_start,
+                    'reentry_signals': self.collected_signals.copy()
+                }
+                
+                self.state = 'IN_MARKET'
+                self.current_zone_start = None
+                self.collected_signals = []
+                print(f"  Zone completed at {reentry_date.date()}: OUT_OF_MARKET → IN_MARKET ({len(zone['reentry_signals'])} signals)")
+                
+                return zone
+            else:
+                # Still collecting signals - already printed above
+                return None
         else:
             # Invalid re-entry - we're already in market or no active zone
             print(f"  Re-entry signal at {reentry_date.date()}: IGNORED (state={self.state})")
@@ -92,23 +115,26 @@ class TradingStateMachine:
             dict or None: Incomplete zone if one exists, None otherwise
         """
         if self.state == 'OUT_OF_MARKET' and self.current_zone_start is not None:
-            # Incomplete zones are always 'orange' type (waiting for re-entry)
-            # In green strategy: waiting for candlestick
-            # In orange strategy: waiting for either MA crossing or candlestick
+            # We have an incomplete zone (didn't collect enough signals)
+            # For green strategy: waiting for more candlestick signals
+            # For orange strategy: could be waiting for either MA crossing or candlesticks
             zone = {
                 'start': self.current_zone_start,
                 'end': last_date,
                 'type': 'orange',  # Always orange for incomplete
                 'completed': False,
                 'exit_signal': self.current_zone_start,
-                'reentry_signals': []
+                'reentry_signals': self.collected_signals.copy()  # Include partial signals
             }
-            print(f"  Incomplete zone: {self.current_zone_start.date()} → {last_date.date()}")
+            if len(self.collected_signals) > 0:
+                print(f"  Incomplete zone: {self.current_zone_start.date()} → {last_date.date()} (collected {len(self.collected_signals)}/{self.max_reentry_signals} signals)")
+            else:
+                print(f"  Incomplete zone: {self.current_zone_start.date()} → {last_date.date()} (no signals found)")
             return zone
         return None
 
 
-def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
+def apply_green_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=1):
     """
     Apply green-only strategy (candlestick signals only).
     
@@ -117,20 +143,23 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
     2. Exit signals only valid when IN_MARKET
     3. Re-entry only at candlestick signals
     4. Process chronologically
+    5. Wait for N candlestick signals before completing zone
     
     Args:
         all_green_patterns: List of detected green patterns (exit → candlestick signal)
         all_orange_patterns: List of detected orange patterns (exit → MA crossing)
         data: Full daily price data
+        max_reentry_signals: Number of signals needed to complete zone
         
     Returns:
         list: Filtered zones following strategy rules
     """
     print(f"\n=== APPLYING GREEN STRATEGY ===")
     print(f"Input: {len(all_green_patterns)} green patterns, {len(all_orange_patterns)} orange patterns")
+    print(f"Max re-entry signals per zone: {max_reentry_signals}")
     
     # Initialize state machine (start IN_MARKET)
-    state_machine = TradingStateMachine(initial_state='IN_MARKET')
+    state_machine = TradingStateMachine(initial_state='IN_MARKET', max_reentry_signals=max_reentry_signals)
     
     # Collect all events with their dates
     events = []
@@ -159,6 +188,14 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
                 'pattern': pattern
             })
     
+    # Add MA crossings as fallback (if not enough candlestick signals)
+    for pattern in all_orange_patterns:
+        events.append({
+            'date': pattern['end'],
+            'type': 'reentry_ma_crossing',
+            'pattern': pattern
+        })
+    
     # Sort events chronologically
     events.sort(key=lambda e: e['date'])
     
@@ -184,10 +221,18 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
             is_valid = state_machine.process_exit_signal(event['date'])
             
         elif event['type'] == 'reentry_candlestick':
-            # Try to process re-entry signal
+            # Try to process re-entry signal (candlestick)
             zone = state_machine.process_reentry_signal(event['date'], signal_type='candlestick')
             if zone:
                 valid_zones.append(zone)
+                
+        elif event['type'] == 'reentry_ma_crossing':
+            # Fallback: if we haven't collected enough candlestick signals,
+            # complete the zone as orange when price crosses back above MA
+            if state_machine.state == 'OUT_OF_MARKET' and len(state_machine.collected_signals) < state_machine.max_reentry_signals:
+                zone = state_machine.process_reentry_signal(event['date'], signal_type='ma_crossing')
+                if zone:
+                    valid_zones.append(zone)
     
     # Finalize any incomplete zone
     incomplete_zone = state_machine.finalize(data.index[-1], strategy_type='green')
@@ -199,7 +244,7 @@ def apply_green_strategy(all_green_patterns, all_orange_patterns, data):
     return valid_zones
 
 
-def apply_orange_strategy(all_green_patterns, all_orange_patterns, data):
+def apply_orange_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=1):
     """
     Apply orange strategy (MA crossings + candlestick signals).
     
@@ -208,20 +253,25 @@ def apply_orange_strategy(all_green_patterns, all_orange_patterns, data):
     2. Exit signals only valid when IN_MARKET
     3. Re-entry at EITHER candlestick signal OR MA crossing (whichever comes first)
     4. Process chronologically
+    5. For candlestick signals: wait for N signals before completing zone
+    6. For MA crossings: complete immediately (max_reentry_signals doesn't apply)
     
     Args:
         all_green_patterns: List of detected green patterns (exit → candlestick signal)
         all_orange_patterns: List of detected orange patterns (exit → MA crossing)
         data: Full daily price data
+        max_reentry_signals: Number of candlestick signals needed to complete green zone
         
     Returns:
         list: Filtered zones following strategy rules
     """
     print(f"\n=== APPLYING ORANGE STRATEGY ===")
     print(f"Input: {len(all_green_patterns)} green patterns, {len(all_orange_patterns)} orange patterns")
+    print(f"Max re-entry signals per zone (candlesticks): {max_reentry_signals}")
     
     # Initialize state machine (start IN_MARKET)
-    state_machine = TradingStateMachine(initial_state='IN_MARKET')
+    # Note: For MA crossings, we'll override to 1 signal
+    state_machine = TradingStateMachine(initial_state='IN_MARKET', max_reentry_signals=max_reentry_signals)
     
     # Collect all events with their dates
     events = []
