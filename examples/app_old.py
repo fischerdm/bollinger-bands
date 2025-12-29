@@ -1,22 +1,8 @@
-"""
-app.py - Enhanced with Data Management
-Drop-in replacement for your existing app.py
-
-New features:
-- YAML-based ticker configuration
-- Smart data caching (10-30x faster after first load)
-- Incremental updates (only download missing dates)
-- Data status display
-- Manual update button
-- All original functionality preserved
-"""
-
 import dash
-from dash import dcc, html, Input, Output, dash_table, State
+from dash import dcc, html, Input, Output, dash_table
 import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
 from bollinger_bands.data.fetcher import DataFetcher
-from bollinger_bands.data.storage_manager import DataStorageManager
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.indicators.band_width import BandWidth
@@ -42,52 +28,34 @@ from bollinger_bands.visualization.formatting import (
 )
 from bollinger_bands.indicators.relative_strength import get_all_tickers_metrics
 
-# ============================================================================
-# DATA MANAGEMENT SETUP (NEW)
-# ============================================================================
 
-# Initialize storage manager and fetcher with caching
-storage_manager = DataStorageManager('config/tickers.yaml')
-fetcher = DataFetcher(storage_manager)
+# Tickers configuration
+tickers = ['EEM', 'URTH', 'GDX', 'GDXJ', 'LTAM.L', 'IBB', 'XBI', 'IOGP.L', 'WENS.AS']
+tickers_dict = {
+    'EEM': 'Emerging Markets (EEM)',
+    'URTH': 'Global Markets (URTH)',
+    'GDX': 'Basic Materials (GDX)',
+    'GDXJ': 'Basic Materials (GDXJ)',
+    'LTAM.L': 'Latin America (LTAM.L)',
+    'IBB': 'Healthcare (IBB)',
+    'XBI': 'Healthcare (XBI)',
+    'IOGP.L': 'iShares Oil & Gas Exploration & Production UCITS ETF USD (Acc)',
+    'WENS.AS': 'iShares MSCI World Energy Sector UCITS ETF USD Inc'
+}
 
-# Load configuration from YAML
-config = storage_manager.config
-enabled_tickers = storage_manager.get_enabled_tickers()
-tickers = [t['symbol'] for t in enabled_tickers]
-tickers_dict = {t['symbol']: t['name'] for t in enabled_tickers}
-
-# Data loading with smart caching
 ticker_data = {}
-start_date = config['data_settings'].get('default_start_date', '2000-01-01')
+fetcher = DataFetcher()
+start_date = '2015-01-01'
 now = datetime.datetime.now()
 end_date = now.strftime('%Y-%m-%d')
 
-print("="*80)
-print("LOADING DATA WITH SMART CACHING")
-print("="*80)
-
-auto_update = config['data_settings'].get('auto_update_on_startup', True)
-
-if auto_update:
-    print("Auto-update enabled: Fetching latest data (only missing dates)...")
-    ticker_data = fetcher.update_all_tickers(end_date)
-else:
-    print("Auto-update disabled: Loading from cache...")
-    for ticker in tickers:
-        print(f"  {ticker}")
-        try:
-            data = fetcher.fetch_ohlc_data(ticker, start_date, end_date, use_cache=True)
-            data.attrs['ticker'] = ticker
-            ticker_data[ticker] = data
-        except Exception as e:
-            print(f"  ERROR loading {ticker}: {e}")
-
-print(f"\n✓ Data loaded for {len(ticker_data)} tickers!")
-print("="*80)
-
-# ============================================================================
-# DASH APP SETUP
-# ============================================================================
+print("Fetching data...")
+for ticker in tickers:
+    print(ticker)
+    data = fetcher.fetch_ohlc_data(ticker, start_date, end_date)
+    data.attrs['ticker'] = ticker
+    ticker_data[ticker] = data
+print("Data loaded!")
 
 app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.LUX,
@@ -95,77 +63,17 @@ app = dash.Dash(__name__, external_stylesheets=[
 ])
 load_figure_template("LUX")
 
-# ============================================================================
-# DATA MANAGEMENT UI COMPONENTS (NEW)
-# ============================================================================
-
-data_management_card = dbc.Card([
-    dbc.CardHeader([
-        html.H5("📊 Data Management", className="mb-0"),
-    ]),
-    dbc.CardBody([
-        dbc.Row([
-            dbc.Col([
-                html.Label("Data Status:", style={'fontWeight': 'bold', 'marginBottom': '5px'}),
-                html.Div(id='data-status', style={'fontSize': '14px'})
-            ], width=6),
-            dbc.Col([
-                html.Div([
-                    dbc.Button(
-                        [html.I(className="bi bi-arrow-clockwise me-2"), "Update Data"],
-                        id='update-data-btn',
-                        color='primary',
-                        size='sm',
-                        className='me-2'
-                    ),
-                    dbc.Button(
-                        [html.I(className="bi bi-info-circle me-2"), "Details"],
-                        id='view-details-btn',
-                        color='secondary',
-                        size='sm',
-                        outline=True
-                    ),
-                ], style={'textAlign': 'right'})
-            ], width=6),
-        ]),
-        dbc.Row([
-            dbc.Col([
-                html.Div(id='update-status', style={'marginTop': '10px', 'fontSize': '14px'})
-            ], width=12)
-        ])
-    ])
-], className="mb-3")
-
-# Modal for data details
-data_details_modal = dbc.Modal([
-    dbc.ModalHeader(dbc.ModalTitle("📋 Stored Data Details")),
-    dbc.ModalBody(id='data-details-content'),
-    dbc.ModalFooter(
-        dbc.Button("Close", id="close-details-modal", className="ms-auto")
-    ),
-], id="data-details-modal", size="xl", is_open=False)
-
-# ============================================================================
-# APP LAYOUT
-# ============================================================================
-
 app.layout = dbc.Container([
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", style={'textAlign': 'center'}),
     html.H2(id='ticker-name', style={'textAlign': 'center'}),
     
-    # Data Management Section (NEW)
-    data_management_card,
-    data_details_modal,
-    dcc.Store(id='update-trigger', data=0),
-    
-    # Original Controls
     dbc.Row([
         dbc.Col([
             html.Div([
                 html.Label("Select Ticker:"),
                 html.I(className="bi bi-info-circle ms-1", id="info-ticker", style={'cursor': 'pointer', 'color': '#6c757d'}),
             ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value=tickers[0] if tickers else 'EEM'),
+            dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value='EEM'),
             dbc.Tooltip(
                 "Choose which ETF or stock to analyze. Each ticker represents different market sectors or regions.",
                 target="info-ticker",
@@ -391,7 +299,7 @@ app.layout = dbc.Container([
     # Main chart with bottom margin to separate from content below
     dcc.Graph(id='stock-chart', style={'height': '120vh', 'marginBottom': '5rem'}),
     
-    # Relative Strength Section
+    # Relative Strength Section - wrapped in div with extra spacing
     html.Div([
         html.Hr(style={'marginTop': '2rem', 'marginBottom': '3rem'}),
         html.H3("Relative Strength Analysis", style={'textAlign': 'center', 'marginBottom': '2rem'}),
@@ -430,144 +338,6 @@ app.layout = dbc.Container([
     
 ], fluid=True, className="p-4")
 
-# ============================================================================
-# DATA MANAGEMENT CALLBACKS (NEW)
-# ============================================================================
-
-@app.callback(
-    Output('data-status', 'children'),
-    Input('update-trigger', 'data')
-)
-def update_data_status(_):
-    """Display current data status."""
-    try:
-        info_df = storage_manager.get_all_data_info()
-        
-        if info_df.empty:
-            return html.Span("⚠️ No data loaded", style={'color': 'red'})
-        
-        # Count OK vs error
-        ok_count = (info_df['status'] == 'OK').sum()
-        total_count = len(info_df)
-        
-        # Get date range
-        if 'end_date' in info_df.columns:
-            dates = pd.to_datetime(info_df['end_date'], errors='coerce')
-            latest_date = dates.max()
-            if pd.notna(latest_date):
-                days_old = (datetime.datetime.now() - latest_date).days
-                if days_old == 0:
-                    date_status = f"Latest: {latest_date.strftime('%Y-%m-%d')} (today)"
-                elif days_old == 1:
-                    date_status = f"Latest: {latest_date.strftime('%Y-%m-%d')} (yesterday)"
-                else:
-                    date_status = f"Latest: {latest_date.strftime('%Y-%m-%d')} ({days_old} days old)"
-            else:
-                date_status = "No date info"
-        else:
-            date_status = "No date info"
-        
-        status_color = 'green' if ok_count == total_count else 'orange'
-        
-        return html.Div([
-            html.Span(f"✓ {ok_count}/{total_count} tickers loaded", 
-                     style={'color': status_color, 'fontWeight': 'bold'}),
-            html.Br(),
-            html.Small(date_status, style={'color': 'gray'})
-        ])
-    except Exception as e:
-        return html.Span(f"⚠️ Error: {str(e)}", style={'color': 'red'})
-
-
-@app.callback(
-    [Output('update-status', 'children'),
-     Output('update-trigger', 'data')],
-    Input('update-data-btn', 'n_clicks'),
-    State('update-trigger', 'data'),
-    prevent_initial_call=True
-)
-def update_data_button(n_clicks, current_trigger):
-    """Handle data update button click."""
-    if n_clicks is None or n_clicks == 0:
-        return "", current_trigger
-    
-    try:
-        end_date = datetime.datetime.now().strftime('%Y-%m-%d')
-        
-        # Update data globally
-        global ticker_data
-        print("\n" + "="*80)
-        print("MANUAL DATA UPDATE TRIGGERED")
-        print("="*80)
-        ticker_data = fetcher.update_all_tickers(end_date)
-        print("="*80)
-        
-        return html.Span("✓ Data updated successfully!", 
-                        style={'color': '#28a745', 'fontWeight': 'bold'}), current_trigger + 1
-    except Exception as e:
-        return html.Span(f"✗ Update failed: {str(e)}", 
-                        style={'color': '#dc3545', 'fontWeight': 'bold'}), current_trigger
-
-
-@app.callback(
-    [Output("data-details-modal", "is_open"),
-     Output("data-details-content", "children")],
-    [Input("view-details-btn", "n_clicks"),
-     Input("close-details-modal", "n_clicks")],
-    [State("data-details-modal", "is_open")],
-)
-def toggle_details_modal(n1, n2, is_open):
-    """Toggle the data details modal."""
-    if n1 or n2:
-        if not is_open:
-            # Opening modal - generate content
-            info_df = storage_manager.get_all_data_info()
-            
-            table = dash_table.DataTable(
-                data=info_df.to_dict('records'),
-                columns=[{'name': col, 'id': col} for col in info_df.columns],
-                style_cell={
-                    'textAlign': 'left',
-                    'padding': '10px',
-                    'fontSize': '12px',
-                    'maxWidth': '200px',
-                    'overflow': 'hidden',
-                    'textOverflow': 'ellipsis',
-                },
-                style_header={
-                    'backgroundColor': 'rgb(230, 230, 230)',
-                    'fontWeight': 'bold',
-                    'textAlign': 'center'
-                },
-                style_data_conditional=[
-                    {
-                        'if': {'column_id': 'status', 'filter_query': '{status} = OK'},
-                        'color': 'green',
-                        'fontWeight': 'bold'
-                    },
-                    {
-                        'if': {'column_id': 'status', 'filter_query': '{status} != OK'},
-                        'color': 'red',
-                        'fontWeight': 'bold'
-                    }
-                ],
-                style_table={'overflowX': 'auto'},
-                tooltip_data=[
-                    {
-                        column: {'value': str(value), 'type': 'markdown'}
-                        for column, value in row.items()
-                    } for row in info_df.to_dict('records')
-                ],
-                tooltip_duration=None,
-            )
-            return not is_open, table
-        else:
-            return not is_open, ""
-    return is_open, ""
-
-# ============================================================================
-# ORIGINAL CALLBACKS (PRESERVED)
-# ============================================================================
 
 @app.callback(
     Output('target-date-store', 'data'),
@@ -579,22 +349,41 @@ def update_target_date(relayout_data):
     if relayout_data is None:
         return None
     
+    # Debug: print what we're receiving
+    print(f"DEBUG relayoutData keys: {relayout_data.keys()}")
+    
     # Check for range changes from slider or zoom/pan
+    # These are the different ways the range can be updated:
+    
+    # Method 1: Direct xaxis.range update (from slider)
     if 'xaxis.range[1]' in relayout_data:
-        return relayout_data['xaxis.range[1]']
+        target_date = relayout_data['xaxis.range[1]']
+        print(f"DEBUG: Range from xaxis.range[1]: {target_date}")
+        return target_date
     
+    # Method 2: xaxis.range as array (from zoom/pan)
     if 'xaxis.range' in relayout_data and len(relayout_data['xaxis.range']) > 1:
-        return relayout_data['xaxis.range'][1]
+        target_date = relayout_data['xaxis.range'][1]
+        print(f"DEBUG: Range from xaxis.range: {target_date}")
+        return target_date
     
+    # Method 3: Check for xaxis3.range (bottom subplot with rangeslider)
     if 'xaxis3.range[1]' in relayout_data:
-        return relayout_data['xaxis3.range[1]']
+        target_date = relayout_data['xaxis3.range[1]']
+        print(f"DEBUG: Range from xaxis3.range[1]: {target_date}")
+        return target_date
     
     if 'xaxis3.range' in relayout_data and len(relayout_data['xaxis3.range']) > 1:
-        return relayout_data['xaxis3.range'][1]
+        target_date = relayout_data['xaxis3.range'][1]
+        print(f"DEBUG: Range from xaxis3.range: {target_date}")
+        return target_date
     
+    # Method 4: Check for autosize or other layout changes
     if 'autosize' in relayout_data or 'width' in relayout_data or 'height' in relayout_data:
+        # Layout resize - don't update date
         return None
     
+    print(f"DEBUG: No range found in relayoutData")
     return None
 
 
@@ -705,7 +494,6 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
     ])
 
 
-# YOUR COMPLETE update_chart CALLBACK HERE (UNCHANGED)
 @app.callback(
     [Output('stock-chart', 'figure'), Output('ticker-name', 'children')],
     [Input('ticker-dropdown', 'value'), Input('period-selector', 'value'),
@@ -719,12 +507,10 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
 def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
                 ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
-    # [YOUR ENTIRE update_chart FUNCTION CODE - EXACTLY AS IS]
-    # (I'm not duplicating it here to save space, but include your complete function)
     try:
         # Safety check: if ticker is None, use default
         if selected_ticker is None:
-            selected_ticker = tickers[0] if tickers else 'EEM'
+            selected_ticker = 'EEM'
         
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
@@ -734,6 +520,10 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         data = data.dropna()
         data = data[data.index.notnull()]
         data = data[data.index >= '2000-01-01']
+        
+        print(f"=== RAW DATA AFTER CLEANING ===")
+        print(f"Data shape: {data.shape}")
+        print(f"Data range: {data.index[0]} to {data.index[-1]}")
         
         # Defaults
         if flat_threshold_840 is None:
@@ -813,7 +603,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             'lower': bb_short_values['lower'][(bb_short_values['lower'].index >= start) & (bb_short_values['lower'].index <= end)]
         }
         
-        # Detect re-entry signals
+        # Detect re-entry signals using refactored module
         reentry_signals = detect_reentry_signals(
             data, ma_long_values, bb_long_values, 
             enabled_signals, bb_distance_threshold
@@ -838,6 +628,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 display_data, ma_long_values, smoothing_window=smoothing_window
             )
             
+            # Apply MA condition threshold if lookahead > 0
             if daily_lookahead > 0 and price_crossing.sum() > 0:
                 crossing_dates = display_data.index[price_crossing == 1]
                 valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
@@ -857,12 +648,44 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 
                 price_crossing = valid_crossings
         else:
+            # Debug MA alignment for monthly/quarterly
+            print(f"\n=== MA ALIGNMENT DEBUG ({period}) ===")
+            print(f"display_data index (first 5): {display_data.index[:5].tolist()}")
+            print(f"display_data Open (first 5): {display_data['Open'][:5].tolist()}")
+            print(f"display_data Close (first 5): {display_data['Close'][:5].tolist()}")
+            if 'original_date' in display_data.columns:
+                print(f"original_date (first 5): {display_data['original_date'][:5].tolist()}")
+                print(f"period_end_dates (first 5): {period_end_dates[:5].tolist()}")
+            print(f"ma_at_period_dates index (first 5): {ma_at_period_dates.index[:5].tolist()}")
+            print(f"ma_at_period_dates values (first 5): {ma_at_period_dates[:5].tolist()}")
+            
+            # Check if indices match
+            indices_match = (display_data.index == ma_at_period_dates.index).all()
+            print(f"\nIndices match: {indices_match}")
+            
+            # Check sample comparisons
+            print(f"\nSample comparisons (first 10 periods):")
+            for i in range(min(10, len(display_data))):
+                d_open = display_data['Open'].iloc[i]
+                d_close = display_data['Close'].iloc[i]
+                ma_val = ma_at_period_dates.iloc[i]
+                crosses = (d_open >= ma_val and d_close < ma_val)
+                period_date = display_data.index[i]
+                print(f"  {period_date.date()}: Open={d_open:.2f}, Close={d_close:.2f}, MA={ma_val:.2f}, Crosses={crosses}")
+            
+            # Count how many periods meet the crossing condition
+            crossing_count = ((display_data['Open'] >= ma_at_period_dates) & (display_data['Close'] < ma_at_period_dates)).sum()
+            print(f"\nTotal periods with Open >= MA and Close < MA: {crossing_count}")
+            
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
         
         # For monthly/quarterly: filter crossings by MA conditions
         if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
             crossing_dates = display_data.index[price_crossing == 1]
             valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
+            
+            print(f"\n=== FILTERING CROSSINGS BY MA CONDITIONS ===")
+            print(f"Found {len(crossing_dates)} initial crossings, checking MA conditions (threshold={ma_condition_threshold:.0%}):")
             
             for cross_date in crossing_dates:
                 if 'original_date' in display_data.columns:
@@ -875,38 +698,66 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 else:
                     period_start = pd.Timestamp(original_cross_date.year, original_cross_date.month, 1)
                 
+                # Find the actual crossing date in daily data (when price crossed below MA)
+                # Look for the day within the period where crossing occurred
                 period_mask = (data.index >= period_start) & (data.index <= original_cross_date)
                 period_data = data[period_mask]
                 
+                # Find the day when price actually crossed below MA
                 is_below = period_data['Close'] < ma_long_values[period_mask]
                 is_above = period_data['Close'] >= ma_long_values[period_mask]
                 
+                # Find transition from above to below
                 crossing_day = None
                 for i in range(1, len(is_below)):
                     if is_above.iloc[i-1] and is_below.iloc[i]:
                         crossing_day = period_data.index[i]
                         break
                 
+                # If we found the crossing day, check MA conditions from that day forward
                 if crossing_day is not None:
+                    # Check MA conditions from crossing day to end of period
                     conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
                         original_cross_date, crossing_day, data, combined_ma_condition, 
                         threshold=ma_condition_threshold
                     )
+                    status = '✓ ACCEPTED' if conditions_met else '✗ REJECTED'
+                    print(f"  {original_cross_date.date()} (crossing on {crossing_day.date()}, checked {crossing_day.date()} to {original_cross_date.date()}): "
+                          f"MA conditions {days_met}/{total_days} days ({pct:.1%}) - {status}")
                 else:
+                    # Fallback: check the entire period if we can't find exact crossing day
                     conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
                         original_cross_date, period_start, data, combined_ma_condition, 
                         threshold=ma_condition_threshold
                     )
+                    status = '✓ ACCEPTED' if conditions_met else '✗ REJECTED'
+                    print(f"  {original_cross_date.date()} (period: {period_start.date()} to {original_cross_date.date()}, no exact crossing day found): "
+                          f"MA conditions {days_met}/{total_days} days ({pct:.1%}) - {status}")
                 
                 if conditions_met:
                     valid_crossings.loc[cross_date] = 1
             
+            print(f"Crossings after MA filter: {valid_crossings.sum()} (rejected {len(crossing_dates) - valid_crossings.sum()})")
             price_crossing = valid_crossings
         
-        # Convert strategy selector
+        # Convert strategy selector to allow_reentry_at_ma parameter
         allow_reentry_at_ma = (strategy == 'orange')
         
         # Identify entry zones
+        print(f"\n=== ZONE DETECTION DEBUG ({selected_ticker}, {period}) ===")
+        print(f"Price crossings: {price_crossing.sum()}")
+        if price_crossing.sum() > 0:
+            crossing_dates = display_data.index[price_crossing == 1]
+            print(f"Crossing dates: {[d.date() for d in crossing_dates[:5]]}")
+        
+        print(f"Re-entry signals: {reentry_signals.sum()}")
+        if reentry_signals.sum() > 0:
+            reentry_dates = data.index[reentry_signals]
+            print(f"Re-entry dates: {[d.date() for d in reentry_dates[:5]]}")
+        
+        print(f"Days below MA: {(data['Close'] < ma_long_values).sum()}")
+        print(f"Days with MA conditions: {combined_ma_condition.sum()}")
+        
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
@@ -915,13 +766,34 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             allow_reentry_at_ma=allow_reentry_at_ma
         )
         
+        print(f"DEBUG: Total entry zones found: {len(entry_zones)}")
+        if len(entry_zones) > 0:
+            for i, zone in enumerate(entry_zones[:3]):
+                print(f"  Zone {i+1}: {zone['start'].date()} to {zone['end'].date()}, completed={zone['completed']}")
+        else:
+            print(f"  NO ZONES FOUND - investigating why...")
+            if price_crossing.sum() == 0:
+                print(f"    Reason: No price crossings detected")
+            elif reentry_signals.sum() == 0:
+                print(f"    Reason: No re-entry signals detected")
+            elif (data['Close'] < ma_long_values).sum() == 0:
+                print(f"    Reason: Price never below MA")
+            elif combined_ma_condition.sum() == 0:
+                print(f"    Reason: MA conditions never met")
+        
         # Plot
         plotter = Plotter()
+        
+        # Don't use the simple plot - we'll create custom candlesticks with zone shading
+        # fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        
+        # Create a figure to hold our custom candlesticks
         plotter.fig = go.Figure()
         
-        # Determine which periods are "out of market"
+        # Determine which periods are "out of market" (in a zone)
         out_of_market = pd.Series(False, index=display_data.index)
         for zone in entry_zones:
+            # Mark all dates in this zone as "out of market"
             zone_mask = (display_data.index >= zone['start']) & (display_data.index <= zone['end'])
             out_of_market = out_of_market | zone_mask
         
@@ -929,7 +801,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         in_market_data = display_data[~out_of_market]
         out_market_data = display_data[out_of_market]
         
-        # Plot in-market candlesticks
+        # Plot in-market candlesticks (normal opacity)
         if len(in_market_data) > 0:
             plotter.fig.add_trace(go.Candlestick(
                 x=in_market_data.index,
@@ -943,7 +815,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 showlegend=True
             ))
         
-        # Plot out-of-market candlesticks (muted)
+        # Plot out-of-market candlesticks (shaded/muted)
         if len(out_market_data) > 0:
             plotter.fig.add_trace(go.Candlestick(
                 x=out_market_data.index,
@@ -952,8 +824,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 low=out_market_data['Low'],
                 close=out_market_data['Close'],
                 name='Out of Market',
-                increasing_line_color='rgba(0, 128, 0, 0.3)',
-                decreasing_line_color='rgba(255, 0, 0, 0.3)',
+                increasing_line_color='rgba(0, 128, 0, 0.3)',  # Muted green
+                decreasing_line_color='rgba(255, 0, 0, 0.3)',  # Muted red
                 increasing_fillcolor='rgba(0, 128, 0, 0.1)',
                 decreasing_fillcolor='rgba(255, 0, 0, 0.1)',
                 showlegend=True
@@ -987,6 +859,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         for zone in entry_zones:
             zone_data = data.loc[zone['start']:zone['end']]
             
+            # Green zones: candlestick re-entry (type='green')
             if zone['type'] == 'green' and 'complete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
@@ -1000,6 +873,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                               hoverinfo='skip'), 
                     row=1, col=1
                 )
+            # Orange zones: MA crossing re-entry (type='orange')
             elif zone['type'] == 'orange' and 'incomplete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
@@ -1182,7 +1056,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         import traceback
         traceback.print_exc()
         plotter = Plotter()
-        fig = plotter.plot_candlestick(ticker_data.get(selected_ticker, list(ticker_data.values())[0]), name=selected_ticker)
+        fig = plotter.plot_candlestick(ticker_data[selected_ticker], name=selected_ticker)
         return fig, f"Error: {selected_ticker}"
 
 
