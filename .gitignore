@@ -209,3 +209,8 @@ __marimo__/
 
 # macOS
 .DS_Store
+
+
+# Data cache
+data/
+data/raw/*.csv
