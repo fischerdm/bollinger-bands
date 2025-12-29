@@ -264,17 +264,33 @@ app.layout = dbc.Container([
             ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Checklist(id='zone-display-checklist', options=[
                 {'label': ' Below MA (Red)', 'value': 'below_ma'},
-                {'label': ' Entry-to-Reentry Complete (Green)', 'value': 'complete_zone'},
-                {'label': ' Entry-to-Reentry Incomplete (Orange)', 'value': 'incomplete_zone'}
-            ], value=['complete_zone'], inline=True, style={'marginTop': '5px'}),
+                {'label': ' Exit-to-Reentry Candlestick (Green)', 'value': 'complete_zone'},
+                {'label': ' Exit-to-Reentry MA crossing (Orange)', 'value': 'incomplete_zone'}
+            ], value=['complete_zone', 'incomplete_zone'], inline=True, style={'marginTop': '5px'}),
             dbc.Tooltip(
                 "Colored background zones on the chart. Below MA (red): all periods below moving average. "
-                "Entry-to-Reentry Complete (green): zones from exit signal to successful re-entry signal. "
-                "Entry-to-Reentry Incomplete (orange): zones from exit signal where re-entry hasn't occurred yet.",
+                "Exit-to-Reentry Candlestick (green): zones from exit signal to candlestick re-entry signal. "
+                "Exit-to-Reentry MA crossing (orange): zones from exit signal to MA crossing re-entry.",
                 target="info-zones",
                 placement="right"
             ),
-        ], width=12),
+        ], width=8),
+        dbc.Col([
+            html.Div([
+                html.Label("Trading Strategy:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-strategy", style={'cursor': 'pointer', 'color': '#6c757d'}),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+            dcc.RadioItems(id='strategy-selector', options=[
+                {'label': ' Candlesticks only (Green)', 'value': 'green'},
+                {'label': ' MA crossing + Candlestick (Orange and green)', 'value': 'orange'}
+            ], value='orange', inline=True, style={'marginTop': '5px'}),
+            dbc.Tooltip(
+                "Candlesticks only (Green): Re-enter only at candlestick signals (conservative). "
+                "MA crossing + Candlestick (Orange and green): Re-enter at either MA crossing (orange zones) or candlestick signal (green zones), whichever comes first (aggressive).",
+                target="info-strategy",
+                placement="right"
+            ),
+        ], width=4),
     ], className="mb-4"),
 
     # Store for target date (hidden)
@@ -486,12 +502,16 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
      Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
      Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value'),
-     Input('max-reentry-signals', 'value')]
+     Input('max-reentry-signals', 'value'), Input('strategy-selector', 'value')]
 )
 def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
-                ma_condition_threshold, daily_lookahead, max_reentry_signals):
+                ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
     try:
+        # Safety check: if ticker is None, use default
+        if selected_ticker is None:
+            selected_ticker = 'EEM'
+        
         data = ticker_data[selected_ticker]
         if 'ticker' not in data.attrs:
             data.attrs['ticker'] = selected_ticker
@@ -519,6 +539,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
         daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
+        strategy = strategy or 'orange'
         
         # MA/BB windows
         if ma_period == '20m10m':
@@ -719,6 +740,9 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             print(f"Crossings after MA filter: {valid_crossings.sum()} (rejected {len(crossing_dates) - valid_crossings.sum()})")
             price_crossing = valid_crossings
         
+        # Convert strategy selector to allow_reentry_at_ma parameter
+        allow_reentry_at_ma = (strategy == 'orange')
+        
         # Identify entry zones
         print(f"\n=== ZONE DETECTION DEBUG ({selected_ticker}, {period}) ===")
         print(f"Price crossings: {price_crossing.sum()}")
@@ -738,7 +762,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
             ma_condition_threshold=ma_condition_threshold, period=period,
-            max_reentry_signals=max_reentry_signals
+            max_reentry_signals=max_reentry_signals,
+            allow_reentry_at_ma=allow_reentry_at_ma
         )
         
         print(f"DEBUG: Total entry zones found: {len(entry_zones)}")
@@ -758,7 +783,53 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         
         # Plot
         plotter = Plotter()
-        fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        
+        # Don't use the simple plot - we'll create custom candlesticks with zone shading
+        # fig = plotter.plot_candlestick(display_data, name=selected_ticker)
+        
+        # Create a figure to hold our custom candlesticks
+        plotter.fig = go.Figure()
+        
+        # Determine which periods are "out of market" (in a zone)
+        out_of_market = pd.Series(False, index=display_data.index)
+        for zone in entry_zones:
+            # Mark all dates in this zone as "out of market"
+            zone_mask = (display_data.index >= zone['start']) & (display_data.index <= zone['end'])
+            out_of_market = out_of_market | zone_mask
+        
+        # Split data into in-market and out-of-market segments
+        in_market_data = display_data[~out_of_market]
+        out_market_data = display_data[out_of_market]
+        
+        # Plot in-market candlesticks (normal opacity)
+        if len(in_market_data) > 0:
+            plotter.fig.add_trace(go.Candlestick(
+                x=in_market_data.index,
+                open=in_market_data['Open'],
+                high=in_market_data['High'],
+                low=in_market_data['Low'],
+                close=in_market_data['Close'],
+                name='In Market',
+                increasing_line_color='green',
+                decreasing_line_color='red',
+                showlegend=True
+            ))
+        
+        # Plot out-of-market candlesticks (shaded/muted)
+        if len(out_market_data) > 0:
+            plotter.fig.add_trace(go.Candlestick(
+                x=out_market_data.index,
+                open=out_market_data['Open'],
+                high=out_market_data['High'],
+                low=out_market_data['Low'],
+                close=out_market_data['Close'],
+                name='Out of Market',
+                increasing_line_color='rgba(0, 128, 0, 0.3)',  # Muted green
+                decreasing_line_color='rgba(255, 0, 0, 0.3)',  # Muted red
+                increasing_fillcolor='rgba(0, 128, 0, 0.1)',
+                decreasing_fillcolor='rgba(255, 0, 0, 0.1)',
+                showlegend=True
+            ))
         
         plotter.add_moving_average(ma_long_filt)
         plotter.add_bollinger_bands(bb_long_filt, name_prefix=f'BB {period_label.split("/")[0]}', dashed=False)
@@ -772,7 +843,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.1, 
             row_heights=[0.6, 0.2, 0.2],
             subplot_titles=(
-                f"{ticker_name} ({display_label} Candles, {period_label} MA/BB)", 
+                f"{ticker_name} ({display_label} Candles, {period_label} MA/BB) - Shaded = Out of Market", 
                 f"Band Width ({long_name} BB)", 
                 "Exit Signals: MA Change & Price Crossing"
             ),
@@ -788,7 +859,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         for zone in entry_zones:
             zone_data = data.loc[zone['start']:zone['end']]
             
-            if zone['completed'] and 'complete_zone' in display_zones:
+            # Green zones: candlestick re-entry (type='green')
+            if zone['type'] == 'green' and 'complete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
                               line=dict(width=0), showlegend=False, hoverinfo='skip'), 
@@ -797,11 +869,12 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=zone_data['Close'], mode='lines', 
                               fill='tonexty', fillcolor='rgba(100,200,100,0.3)', 
-                              line=dict(width=0), name='Complete Zone', showlegend=False, 
+                              line=dict(width=0), name='Candlestick Zone', showlegend=False, 
                               hoverinfo='skip'), 
                     row=1, col=1
                 )
-            elif not zone['completed'] and 'incomplete_zone' in display_zones:
+            # Orange zones: MA crossing re-entry (type='orange')
+            elif zone['type'] == 'orange' and 'incomplete_zone' in display_zones:
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=[y_min]*len(zone_data), mode='lines', 
                               line=dict(width=0), showlegend=False, hoverinfo='skip'), 
@@ -810,7 +883,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 fig_with_bandwidth.add_trace(
                     go.Scatter(x=zone_data.index, y=zone_data['Close'], mode='lines', 
                               fill='tonexty', fillcolor='rgba(255,200,100,0.3)', 
-                              line=dict(width=0), name='Incomplete Zone', showlegend=False, 
+                              line=dict(width=0), name='MA Crossing Zone', showlegend=False, 
                               hoverinfo='skip'), 
                     row=1, col=1
                 )
