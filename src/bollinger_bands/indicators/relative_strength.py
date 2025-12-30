@@ -77,7 +77,7 @@ def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     Calculate Levy's Relative Strength indicator.
     
     If benchmark_data is provided:
-        Levy's RS = Asset Performance - Benchmark Performance (excess return)
+        Levy's RS = (Asset Performance / Benchmark Performance) - 1 (ratio-based)
     If benchmark_data is None:
         Levy's RS = Asset Performance (absolute return)
     
@@ -119,10 +119,17 @@ def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     
     bench_performance = ((bench_current / bench_past) - 1) * 100
     
-    # Return relative strength (excess return vs benchmark)
-    levy_rs = asset_performance - bench_performance
+    # Return relative strength as ratio
+    # Convert percentages to multipliers, divide, then back to percentage
+    asset_multiplier = 1 + (asset_performance / 100)
+    bench_multiplier = 1 + (bench_performance / 100)
     
-    return levy_rs
+    if bench_multiplier == 0:
+        return np.nan
+    
+    relative_ratio = (asset_multiplier / bench_multiplier - 1) * 100
+    
+    return relative_ratio
 
 
 def calculate_all_metrics(data, benchmark_data=None):

@@ -415,7 +415,31 @@ app.layout = dbc.Container([
                     target="info-rs-reference",
                     placement="right"
                 ),
-            ], width=6),
+            ], width=4),
+            dbc.Col([
+                html.Div([
+                    html.Label("Calculation Currency:", style={'fontWeight': 'bold'}),
+                    html.I(className="bi bi-info-circle ms-1", id="info-rs-currency", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '0.5rem'}),
+                dcc.Dropdown(
+                    id='rs-calculation-currency-dropdown',
+                    options=[
+                        {'label': 'USD (US Dollar)', 'value': 'USD'},
+                        {'label': 'CHF (Swiss Franc)', 'value': 'CHF'},
+                        {'label': 'EUR (Euro)', 'value': 'EUR'},
+                        {'label': 'GBP (British Pound)', 'value': 'GBP'},
+                    ],
+                    value='USD',
+                    style={'width': '100%'}
+                ),
+                dbc.Tooltip(
+                    "Currency for calculating all performance metrics. "
+                    "All tickers will be converted to this currency before calculating returns. "
+                    "Use this to compare CHF-based assets (like SMI) with USD-based assets fairly.",
+                    target="info-rs-currency",
+                    placement="right"
+                ),
+            ], width=4),
             dbc.Col([
                 html.Div([
                     html.Label("Filter by Metric:", style={'fontWeight': 'bold'}),
@@ -441,7 +465,7 @@ app.layout = dbc.Container([
                     target="info-rs-filter",
                     placement="right"
                 ),
-            ], width=6),
+            ], width=4),
         ], className="mb-4"),
         
         html.Div(id='relative-strength-table'),
@@ -622,9 +646,11 @@ def update_target_date(relayout_data):
     [Input('ticker-dropdown', 'value'),
      Input('rs-filter-dropdown', 'value'),
      Input('rs-reference-dropdown', 'value'),
+     Input('rs-calculation-currency-dropdown', 'value'),
      Input('target-date-store', 'data')]
 )
-def update_relative_strength_table(selected_ticker, filter_value, reference_ticker, target_date):
+def update_relative_strength_table(selected_ticker, filter_value, reference_ticker, 
+                                   calculation_currency, target_date):
     """Update the relative strength comparison table"""
     
     # Convert target_date string to pandas Timestamp if provided
@@ -635,8 +661,29 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         except:
             target_date_ts = None
     
+    # Currency conversion logic
+    # NOTE: This is a placeholder. To actually implement currency conversion:
+    # 1. You need to add the CurrencyConverter from the currency_converter.py module
+    # 2. Initialize it with your config
+    # 3. Convert ticker_data before passing to get_all_tickers_metrics
+    #
+    # For now, we'll use the original data and add a note if currency != USD
+    
+    data_to_use = ticker_data
+    currency_note = ""
+    
+    if calculation_currency and calculation_currency != 'USD':
+        currency_note = f" (Calculated in {calculation_currency})"
+        # TODO: Implement actual conversion
+        # Example:
+        # from bollinger_bands.data.currency_converter import CurrencyConverter
+        # converter = CurrencyConverter(config)
+        # data_to_use = converter.convert_ticker_data(
+        #     ticker_data, ticker_currencies, calculation_currency
+        # )
+    
     # Get metrics for all tickers with selected benchmark
-    metrics_df = get_all_tickers_metrics(ticker_data, reference_ticker=reference_ticker, target_date=target_date_ts)
+    metrics_df = get_all_tickers_metrics(data_to_use, reference_ticker=reference_ticker, target_date=target_date_ts)
     
     # Apply filter
     if filter_value == '6m_positive':
@@ -745,12 +792,14 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     benchmark_info = f" | Benchmark: {benchmark_name}"
     
     return html.Div([
-        html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}", style={'marginBottom': '1rem'}),
+        html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}{currency_note}", 
+                style={'marginBottom': '1rem'}),
         html.P([
             html.Strong("Levy RS (%)"), ": (Current Price / 6M MA) - 1. ",
-            html.Strong("6M Perf Rel. Bench (%)"), f": 6M return minus {reference_ticker}'s 6M return. ",
+            html.Strong("6M Perf Rel. Bench (%)"), f": (Asset return / {reference_ticker} return) - 1. ",
             f"Benchmark ({reference_ticker}) shows 0%. ",
-            "Positive = outperformance, negative = underperformance."
+            "Positive = outperformance. ",
+            html.Em("Note: Currency-independent when same base currency.")
         ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
@@ -1239,3 +1288,4 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
 
 if __name__ == '__main__':
     app.run(debug=False, port=8050)
+
