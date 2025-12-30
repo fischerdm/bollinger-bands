@@ -102,6 +102,44 @@ Re-entry signals indicate that the asset has found support and may be resuming i
 - Sortable and filterable metrics
 - Interactive selection highlighting
 
+## Application Screenshots
+
+### Main Chart Interface
+
+![Options View](docs/images/app_options.png)
+
+![Main Chart View](docs/images/app_main_chart.png)
+
+The main chart displays:
+- Candlestick price data (daily, monthly, or quarterly)
+- Dual Bollinger Bands (40M/20M or 20M/10M)
+- Long and short moving averages
+- Trading zones (red: below MA, green: exit to re-entry, orange: MA crossing zones)
+- Re-entry signals marked with green triangles
+- Bollinger Band width to show volatility
+
+### Exit Signal Detection
+
+![Exit Signals Panel](docs/images/app_signals_panel.png)
+
+The bottom panel displays:
+- Exit signal crossings with date markers
+- Moving average condition status (flat/decreasing)
+- Band width indicator showing volatility
+- Real-time validation of signal conditions
+
+### Relative Strength Analysis
+
+![Relative Strength Table](docs/images/app_relative_strength.png)
+
+The relative strength table shows:
+- 6-month and 12-month performance metrics
+- Average performance ranking
+- Levy Relative Strength (RSL) indicator
+- Sortable and filterable columns for quick analysis
+- Highlighting of current selected ticker
+
+
 ## Strategy Implementation
 
 ### The Complete Trading Cycle
