@@ -111,6 +111,7 @@ Re-entry signals indicate that the asset has found support and may be resuming i
 ![Main Chart View](docs/images/app_main_chart.png)
 
 The main chart displays:
+- Calibration options
 - Candlestick price data (daily, monthly, or quarterly)
 - Dual Bollinger Bands (40M/20M or 20M/10M)
 - Long and short moving averages
@@ -595,9 +596,12 @@ MIT License
 
 This application is for educational and informational purposes only. It does not constitute financial advice. Trading stocks and ETFs involves risk of loss. Past performance does not guarantee future results. Users should conduct their own research and consult with qualified financial advisors before making investment decisions.
 
+<!--
 ## Contributing
 
 [Add contribution guidelines if open source]
+
+--->
 
 ## Acknowledgments
 
