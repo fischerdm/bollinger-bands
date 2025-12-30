@@ -40,44 +40,66 @@ def calculate_performance(data, months):
     return performance
 
 
-def calculate_levy_relative_strength(data, months=6):
+def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     """
     Calculate Levy's Relative Strength indicator.
     
-    Levy's RS = (Current Price / n-period Moving Average) - 1
+    If benchmark_data is provided:
+        Levy's RS = Asset Performance - Benchmark Performance (excess return)
+    If benchmark_data is None:
+        Levy's RS = Asset Performance (absolute return)
     
     Args:
-        data: DataFrame with OHLC data
-        months: Period for the moving average (default 6 months)
+        data: DataFrame with OHLC data for the asset
+        benchmark_data: Optional DataFrame with OHLC data for benchmark
+        months: Lookback period in months (default 6)
         
     Returns:
         Float representing Levy's relative strength as a percentage
     """
-    if len(data) < 2:
+    lookback_days = months * 21
+    
+    if len(data) < lookback_days:
         return np.nan
     
-    # Calculate trading days
-    period_days = months * 21
-    
-    if len(data) < period_days:
-        return np.nan
-    
+    # Calculate asset performance
     current_price = data['Close'].iloc[-1]
-    ma = data['Close'].iloc[-period_days:].mean()
+    past_price = data['Close'].iloc[-lookback_days]
     
-    if ma == 0:
+    if past_price == 0:
         return np.nan
     
-    levy_rs = ((current_price / ma) - 1) * 100
+    asset_performance = ((current_price / past_price) - 1) * 100
+    
+    # If no benchmark, return absolute performance
+    if benchmark_data is None:
+        return asset_performance
+    
+    # Calculate benchmark performance
+    if len(benchmark_data) < lookback_days:
+        return np.nan
+    
+    bench_current = benchmark_data['Close'].iloc[-1]
+    bench_past = benchmark_data['Close'].iloc[-lookback_days]
+    
+    if bench_past == 0:
+        return np.nan
+    
+    bench_performance = ((bench_current / bench_past) - 1) * 100
+    
+    # Return relative strength (excess return vs benchmark)
+    levy_rs = asset_performance - bench_performance
+    
     return levy_rs
 
 
-def calculate_all_metrics(data):
+def calculate_all_metrics(data, benchmark_data=None):
     """
     Calculate all relative strength metrics for a ticker.
     
     Args:
         data: DataFrame with OHLC data
+        benchmark_data: Optional DataFrame with benchmark OHLC data
         
     Returns:
         Dictionary with all metrics
@@ -91,7 +113,7 @@ def calculate_all_metrics(data):
     else:
         avg_perf = np.nan
     
-    levy_rs = calculate_levy_relative_strength(data, 6)
+    levy_rs = calculate_levy_relative_strength(data, benchmark_data, months=6)
     
     return {
         '6M_perf': perf_6m,
@@ -101,13 +123,14 @@ def calculate_all_metrics(data):
     }
 
 
-def calculate_metrics_at_date(data, target_date):
+def calculate_metrics_at_date(data, target_date, benchmark_data=None):
     """
     Calculate relative strength metrics as of a specific date.
     
     Args:
         data: DataFrame with OHLC data
         target_date: Date to calculate metrics at
+        benchmark_data: Optional DataFrame with benchmark OHLC data
         
     Returns:
         Dictionary with all metrics
@@ -123,15 +146,23 @@ def calculate_metrics_at_date(data, target_date):
             'levy_rs': np.nan
         }
     
-    return calculate_all_metrics(data_subset)
+    # Filter benchmark data if provided
+    benchmark_subset = None
+    if benchmark_data is not None:
+        benchmark_subset = benchmark_data[benchmark_data.index <= target_date]
+        if len(benchmark_subset) == 0:
+            benchmark_subset = None
+    
+    return calculate_all_metrics(data_subset, benchmark_subset)
 
 
-def get_all_tickers_metrics(ticker_data, target_date=None):
+def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=None):
     """
     Calculate metrics for all tickers.
     
     Args:
         ticker_data: Dictionary mapping ticker symbols to DataFrames
+        reference_ticker: Ticker symbol to use as benchmark (default: 'URTH')
         target_date: Optional date to calculate metrics at (default: latest)
         
     Returns:
@@ -139,11 +170,21 @@ def get_all_tickers_metrics(ticker_data, target_date=None):
     """
     results = []
     
+    # Get benchmark data
+    benchmark_data = ticker_data.get(reference_ticker)
+    
+    # Warn if benchmark not available
+    if benchmark_data is None and reference_ticker is not None:
+        print(f"Warning: Benchmark ticker '{reference_ticker}' not found in data. Using absolute performance for Levy RS.")
+    
     for ticker, data in ticker_data.items():
+        # Don't compare benchmark to itself (would be 0)
+        current_benchmark = None if ticker == reference_ticker else benchmark_data
+        
         if target_date is not None:
-            metrics = calculate_metrics_at_date(data, target_date)
+            metrics = calculate_metrics_at_date(data, target_date, current_benchmark)
         else:
-            metrics = calculate_all_metrics(data)
+            metrics = calculate_all_metrics(data, current_benchmark)
         
         results.append({
             'ticker': ticker,

@@ -399,6 +399,25 @@ app.layout = dbc.Container([
         dbc.Row([
             dbc.Col([
                 html.Div([
+                    html.Label("Reference Ticker (Benchmark):", style={'fontWeight': 'bold'}),
+                    html.I(className="bi bi-info-circle ms-1", id="info-rs-reference", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '0.5rem'}),
+                dcc.Dropdown(
+                    id='rs-reference-dropdown',
+                    options=[{'label': tickers_dict.get(t, t), 'value': t} for t in tickers],
+                    value='URTH',
+                    style={'width': '100%'}
+                ),
+                dbc.Tooltip(
+                    "Select benchmark ticker for Levy RS calculation. "
+                    "Levy RS shows how much each ticker outperforms (positive) or underperforms (negative) the benchmark. "
+                    "The benchmark itself will show 0% Levy RS.",
+                    target="info-rs-reference",
+                    placement="right"
+                ),
+            ], width=6),
+            dbc.Col([
+                html.Div([
                     html.Label("Filter by Metric:", style={'fontWeight': 'bold'}),
                     html.I(className="bi bi-info-circle ms-1", id="info-rs-filter", style={'cursor': 'pointer', 'color': '#6c757d'}),
                 ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '0.5rem'}),
@@ -602,9 +621,10 @@ def update_target_date(relayout_data):
     Output('relative-strength-table', 'children'),
     [Input('ticker-dropdown', 'value'),
      Input('rs-filter-dropdown', 'value'),
+     Input('rs-reference-dropdown', 'value'),
      Input('target-date-store', 'data')]
 )
-def update_relative_strength_table(selected_ticker, filter_value, target_date):
+def update_relative_strength_table(selected_ticker, filter_value, reference_ticker, target_date):
     """Update the relative strength comparison table"""
     
     # Convert target_date string to pandas Timestamp if provided
@@ -615,8 +635,8 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
         except:
             target_date_ts = None
     
-    # Get metrics for all tickers
-    metrics_df = get_all_tickers_metrics(ticker_data, target_date=target_date_ts)
+    # Get metrics for all tickers with selected benchmark
+    metrics_df = get_all_tickers_metrics(ticker_data, reference_ticker=reference_ticker, target_date=target_date_ts)
     
     # Apply filter
     if filter_value == '6m_positive':
@@ -635,9 +655,20 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
     # Sort by average performance (descending)
     metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
     
-    # Add ticker names
+    # Add ticker names and truncate long names
+    def truncate_name(name, max_length=25):
+        """Truncate name and add ellipsis if too long"""
+        if pd.isna(name):
+            return name
+        if len(name) > max_length:
+            return name[:max_length-3] + '...'
+        return name
+    
     metrics_df['Ticker Name'] = metrics_df['ticker'].map(tickers_dict)
-    metrics_df = metrics_df[['ticker', 'Ticker Name', '6M Performance (%)', 
+    metrics_df['Ticker Name Short'] = metrics_df['Ticker Name'].apply(lambda x: truncate_name(x, max_length=25))
+    metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']  # Keep full name for tooltip
+    
+    metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 'Levy RS (%)']]
     
     # Create conditional styling based on selected ticker
@@ -673,12 +704,19 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
         data=metrics_df.to_dict('records'),
         columns=[
             {'name': 'Ticker', 'id': 'ticker'},
-            {'name': 'Name', 'id': 'Ticker Name'},
+            {'name': 'Name', 'id': 'Ticker Name Short'},
             {'name': '6M Perf (%)', 'id': '6M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': '12M Perf (%)', 'id': '12M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Avg Perf (%)', 'id': 'Avg Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Levy RS (%)', 'id': 'Levy RS (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
         ],
+        tooltip_data=[
+            {
+                'Ticker Name Short': {'value': row['Ticker Name Full'], 'type': 'text'}
+            }
+            for row in metrics_df.to_dict('records')
+        ],
+        tooltip_duration=None,
         style_cell={
             'textAlign': 'left',
             'padding': '10px',
@@ -699,8 +737,17 @@ def update_relative_strength_table(selected_ticker, filter_value, target_date):
     if target_date_ts:
         date_info = f" (as of {target_date_ts.strftime('%Y-%m-%d')})"
     
+    # Add benchmark info
+    benchmark_name = tickers_dict.get(reference_ticker, reference_ticker)
+    benchmark_info = f" | Benchmark: {benchmark_name}"
+    
     return html.Div([
-        html.H5(f"Relative Strength Metrics{date_info}", style={'marginBottom': '1rem'}),
+        html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}", style={'marginBottom': '1rem'}),
+        html.P([
+            "Levy RS shows excess return vs benchmark. ",
+            html.Strong(f"{reference_ticker}"), 
+            " shows 0% (reference). Positive values = outperformance, negative = underperformance."
+        ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
 
