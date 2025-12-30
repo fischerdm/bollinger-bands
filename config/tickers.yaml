@@ -3,63 +3,80 @@
 # - symbol: The ticker symbol (required)
 # - name: Display name for the UI (required)
 # - enabled: Whether to load this ticker (optional, default: true)
+# - currency: Base currency of the ticker (optional, default: USD)
 
 tickers:
   - symbol: EEM
     name: "Emerging Markets (EEM)"
     enabled: true
+    currency: USD
     
   - symbol: URTH
     name: "Global Markets (URTH)"
     enabled: true
+    currency: USD
     
   - symbol: GDX
     name: "Basic Materials (GDX)"
     enabled: true
+    currency: USD
     
   - symbol: GDXJ
     name: "Basic Materials (GDXJ)"
     enabled: true
+    currency: USD
     
   - symbol: LTAM.L
     name: "Latin America (LTAM.L)"
     enabled: true
+    currency: USD
     
   - symbol: IBB
-    name: "Shares Biotechnology ETF (IBB)"
+    name: "Healthcare (IBB)"
     enabled: true
+    currency: USD
     
   - symbol: XBI
-    name: "State Street SPDR S&P Biotech ETF (XBI)"
+    name: "Healthcare (XBI)"
     enabled: true
+    currency: USD
     
   - symbol: IOGP.L
     name: "iShares Oil & Gas Exploration & Production UCITS ETF USD (Acc)"
     enabled: true
+    currency: USD
     
   - symbol: WENS.AS
     name: "iShares MSCI World Energy Sector UCITS ETF USD Inc"
     enabled: true
+    currency: USD
 
-  - symbol: INDA
-    name: "iShares MSCI India ETF"
-    enabled: true
-
-  - symbol: IDX
-    name: "VanEck Indonesia Index ETF"
-    enabled: true  
-
-  - symbol: EIDO
-    name: "iShares MSCI Indonesia ETF"
-    enabled: true  
-
-  - symbol: SPDW
-    name: "SPDR Portfolio Developed World ex-US ETF"
-    enabled: true  
-    
-  - symbol: WCSS.AS
-    name: "iShares MSCI World Consumer Staples Sector Advanced UCITS ETF USD Inc"
-    enabled: true
+# Currency settings
+currency_settings:
+  # Available currencies for conversion
+  available_currencies:
+    - USD
+    - EUR
+    - CHF
+    - GBP
+    - JPY
+  
+  # Default display currency
+  default_currency: USD
+  
+  # Currency pair symbols for fetching exchange rates from yfinance
+  # Format: XXXYYY=X where XXX is base currency and YYY is quote currency
+  currency_pairs:
+    USDCHF: "CHF=X"      # USD to CHF
+    USDEUR: "EUR=X"      # USD to EUR  (inverted - EUR per USD)
+    USDGBP: "GBP=X"      # USD to GBP  (inverted - GBP per USD)
+    USDJPY: "JPY=X"      # USD to JPY  (inverted - JPY per USD)
+    EURCHF: "EURCHF=X"   # EUR to CHF
+    GBPCHF: "GBPCHF=X"   # GBP to CHF
+    JPYCHF: "JPYCHF=X"   # JPY to CHF
+    EURGBP: "EURGBP=X"   # EUR to GBP
+    EURJPY: "EURJPY=X"   # EUR to JPY
+    GBPJPY: "GBPJPY=X"   # GBP to JPY
 
 # Data settings
 data_settings:
@@ -68,6 +85,9 @@ data_settings:
   
   # Directory for storing raw data files
   data_directory: "data/raw"
+  
+  # Directory for storing currency exchange rate data
+  currency_data_directory: "data/currencies"
   
   # Auto-update: fetch missing dates on startup
   auto_update_on_startup: true
