@@ -110,19 +110,13 @@ Re-entry signals indicate that the asset has found support and may be resuming i
 
 1. **Analyze Relative Strength**:
    - Review the Relative Strength table
-   - Identify tickers with positive 6M and 12M performance
-   - Focus on highest average performance
-   - Verify Levy RS is positive
+   - Identify tickers with high 6M, 12M and Levy RS (RSL)
 
 2. **Select Top Performers**:
-   - Choose 2-3 sectors with strongest momentum
+   - Choose sectors with strongest momentum
    - Ensure they outperform broad market benchmark
    - Consider diversification across different sectors
-
-3. **Confirm Entry Conditions**:
-   - Price should be above moving average
-   - Not in an active exit signal
-   - Preferably near middle or upper Bollinger Band
+   - Do not hold positions in your portfolio that underperform the MSCI World Index, as it offers the best risk-adjusted returns (https://www.fuw.ch/der-msci-world-bleibt-der-leuchtturm-im-nebel-994955555043)
 
 #### Phase 2: Position Monitoring (Hold Period)
 
@@ -162,38 +156,24 @@ Re-entry signals indicate that the asset has found support and may be resuming i
 #### Phase 4: Cash Period (Capital Preservation)
 
 1. **Wait for Re-Entry**:
-   - Monitor for candlestick reversal patterns
-   - Watch for price approaching lower Bollinger Band
-   - Or wait for price to cross back above MA (orange strategy)
+   - Monitor for candlestick reversal patterns as early signals
+   - May watch for price approaching lower Bollinger Band to fine-tune your re-entry
+   - Keep in mind that markets tend to be manic depressive
+   - Consider choosing a different sector for re-entry. The broad market index often stabilizes first. Look for sectors that may gain during downturns, such as oil companies during the Dot-Com bust (https://medium.com/@redlotuscapitals/sectors-and-stocks-that-gained-during-the-dot-com-bust-8af2c64f1749)
 
-2. **Evaluate Market Conditions**:
-   - Review relative strength of other sectors
-   - Consider if original sector still has best momentum
-   - May choose different sector for re-entry
-
-3. **Patience**:
-   - Do not re-enter prematurely
-   - Wait for clear signals indicating momentum return
-   - Preserve capital until conditions improve
+2. **In Dubio pro Tauris**:
+   - Do not wait too long to re-enter the market (https://themarket.ch/meinung/alfons-cortes-in-dubio-pro-tauris-ld.3769)
+   - Be optimistic when others are not
+   - Use candlestick reversal signals as guidance
 
 #### Phase 5: Re-Entry Signal (Return to Market)
 
 1. **Re-Entry Signal Generation**:
    - Candlestick pattern appears (Engulfing, Hammer, Morning Star)
    - Price is near lower Bollinger Band (oversold)
-   - Or price crosses back above moving average (orange strategy)
+   - Or price crosses back above moving average (orange strategy, see below) when no candlestick signal appears
 
-2. **Verify Conditions**:
-   - Check relative strength is still positive
-   - Ensure sector still shows momentum
-   - Confirm signal quality against parameters
-
-3. **Action Required**:
-   - **Buy position** at signal
-   - Return to Phase 2 (Position Monitoring)
-   - Set stop loss if desired
-
-4. **Visual Confirmation**:
+2. **Visual Confirmation**:
    - Green triangle marker on chart (re-entry signal)
    - Shaded zone ends
    - Candlesticks return to normal opacity
