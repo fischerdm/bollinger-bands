@@ -76,6 +76,11 @@ tickers:
     enabled: true
     currency: USD
 
+  - symbol: ^SSMI
+    name: "Swiss Market Index (SMI)"
+    enabled: true
+    currency: CHF
+
 # Currency settings
 currency_settings:
   # Available currencies for conversion
