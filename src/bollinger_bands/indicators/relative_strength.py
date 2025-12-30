@@ -40,6 +40,38 @@ def calculate_performance(data, months):
     return performance
 
 
+def calculate_levy_rs_original(data, months=6):
+    """
+    Calculate original Levy's Relative Strength indicator.
+    
+    Levy's RS = (Current Price / n-period Moving Average) - 1
+    
+    Args:
+        data: DataFrame with OHLC data
+        months: Period for the moving average (default 6 months)
+        
+    Returns:
+        Float representing Levy's relative strength as a percentage
+    """
+    if len(data) < 2:
+        return np.nan
+    
+    # Calculate trading days
+    period_days = months * 21
+    
+    if len(data) < period_days:
+        return np.nan
+    
+    current_price = data['Close'].iloc[-1]
+    ma = data['Close'].iloc[-period_days:].mean()
+    
+    if ma == 0:
+        return np.nan
+    
+    levy_rs = ((current_price / ma) - 1) * 100
+    return levy_rs
+
+
 def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     """
     Calculate Levy's Relative Strength indicator.
@@ -113,13 +145,18 @@ def calculate_all_metrics(data, benchmark_data=None):
     else:
         avg_perf = np.nan
     
-    levy_rs = calculate_levy_relative_strength(data, benchmark_data, months=6)
+    # Original Levy RS (Price / MA - 1)
+    levy_rs_original = calculate_levy_rs_original(data, months=6)
+    
+    # Relative performance vs benchmark (6M return difference)
+    levy_rs_relative = calculate_levy_relative_strength(data, benchmark_data, months=6)
     
     return {
         '6M_perf': perf_6m,
         '12M_perf': perf_12m,
         'avg_perf': avg_perf,
-        'levy_rs': levy_rs
+        'levy_rs_original': levy_rs_original,  # Price/MA formula
+        'levy_rs_relative': levy_rs_relative   # Return vs benchmark
     }
 
 
@@ -143,7 +180,8 @@ def calculate_metrics_at_date(data, target_date, benchmark_data=None):
             '6M_perf': np.nan,
             '12M_perf': np.nan,
             'avg_perf': np.nan,
-            'levy_rs': np.nan
+            'levy_rs_original': np.nan,
+            'levy_rs_relative': np.nan
         }
     
     # Filter benchmark data if provided
@@ -175,23 +213,41 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
     
     # Warn if benchmark not available
     if benchmark_data is None and reference_ticker is not None:
-        print(f"Warning: Benchmark ticker '{reference_ticker}' not found in data. Using absolute performance for Levy RS.")
+        print(f"Warning: Benchmark ticker '{reference_ticker}' not found in data. Relative metrics will be N/A.")
     
     for ticker, data in ticker_data.items():
-        # Don't compare benchmark to itself (would be 0)
-        current_benchmark = None if ticker == reference_ticker else benchmark_data
-        
         if target_date is not None:
-            metrics = calculate_metrics_at_date(data, target_date, current_benchmark)
+            # For original Levy RS: never use benchmark (always Price/MA)
+            metrics = calculate_metrics_at_date(data, target_date, benchmark_data=None)
+            
+            # For relative metrics: use benchmark only if ticker != benchmark
+            if ticker != reference_ticker and benchmark_data is not None:
+                benchmark_subset = benchmark_data[benchmark_data.index <= target_date]
+                if len(benchmark_subset) > 0:
+                    metrics_rel = calculate_metrics_at_date(data, target_date, benchmark_data=benchmark_subset)
+                    levy_rs_relative = metrics_rel['levy_rs_relative']
+                else:
+                    levy_rs_relative = np.nan
+            else:
+                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
         else:
-            metrics = calculate_all_metrics(data, current_benchmark)
+            # For original Levy RS: never use benchmark (always Price/MA)
+            metrics = calculate_all_metrics(data, benchmark_data=None)
+            
+            # For relative metrics: use benchmark only if ticker != benchmark
+            if ticker != reference_ticker and benchmark_data is not None:
+                metrics_rel = calculate_all_metrics(data, benchmark_data=benchmark_data)
+                levy_rs_relative = metrics_rel['levy_rs_relative']
+            else:
+                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
         
         results.append({
             'ticker': ticker,
             '6M Performance (%)': metrics['6M_perf'],
             '12M Performance (%)': metrics['12M_perf'],
             'Avg Performance (%)': metrics['avg_perf'],
-            'Levy RS (%)': metrics['levy_rs']
+            'Levy RS (%)': metrics['levy_rs_original'],  # Original Price/MA formula
+            '6M Perf Rel. Bench (%)': levy_rs_relative    # Relative to benchmark
         })
     
     df = pd.DataFrame(results)

@@ -646,7 +646,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == 'avg_positive':
         metrics_df = metrics_df[metrics_df['Avg Performance (%)'] > 0]
     elif filter_value == 'levy_positive':
-        metrics_df = metrics_df[metrics_df['Levy RS (%)'] > 0]
+        metrics_df = metrics_df[metrics_df['6M Perf Rel. Bench (%)'] > 0]
     elif filter_value == '6m_negative':
         metrics_df = metrics_df[metrics_df['6M Performance (%)'] < 0]
     elif filter_value == '12m_negative':
@@ -669,7 +669,8 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']  # Keep full name for tooltip
     
     metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
-                              '12M Performance (%)', 'Avg Performance (%)', 'Levy RS (%)']]
+                              '12M Performance (%)', 'Avg Performance (%)', 
+                              'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
     # Create conditional styling based on selected ticker
     style_data_conditional = [
@@ -681,7 +682,8 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     ]
     
     # Add color coding for positive/negative values
-    for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 'Levy RS (%)']:
+    for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 
+                'Levy RS (%)', '6M Perf Rel. Bench (%)']:
         style_data_conditional.extend([
             {
                 'if': {
@@ -709,6 +711,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             {'name': '12M Perf (%)', 'id': '12M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Avg Perf (%)', 'id': 'Avg Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Levy RS (%)', 'id': 'Levy RS (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
+            {'name': '6M Perf Rel. Bench (%)', 'id': '6M Perf Rel. Bench (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
         ],
         tooltip_data=[
             {
@@ -744,9 +747,10 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     return html.Div([
         html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}", style={'marginBottom': '1rem'}),
         html.P([
-            "Levy RS shows excess return vs benchmark. ",
-            html.Strong(f"{reference_ticker}"), 
-            " shows 0% (reference). Positive values = outperformance, negative = underperformance."
+            html.Strong("Levy RS (%)"), ": (Current Price / 6M MA) - 1. ",
+            html.Strong("6M Perf Rel. Bench (%)"), f": 6M return minus {reference_ticker}'s 6M return. ",
+            f"Benchmark ({reference_ticker}) shows 0%. ",
+            "Positive = outperformance, negative = underperformance."
         ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
