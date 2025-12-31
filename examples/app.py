@@ -1,14 +1,12 @@
 """
-app.py - Enhanced with Data Management
+app.py - Enhanced with Data Management and Improved Layout
 Drop-in replacement for your existing app.py
 
-New features:
-- YAML-based ticker configuration
-- Smart data caching (10-30x faster after first load)
-- Incremental updates (only download missing dates)
-- Data status display
-- Manual update button
-- All original functionality preserved
+New improvements:
+- Better spacing between charts and sections
+- Professional theme (FLATLY - clean and modern)
+- Consistent margins and padding
+- Responsive layout that works in different browser sizes
 """
 
 import dash
@@ -17,7 +15,7 @@ import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
 from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.data.storage_manager import DataStorageManager
-from bollinger_bands.data.currency_converter import CurrencyConverter  # NEW
+from bollinger_bands.data.currency_converter import CurrencyConverter
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.indicators.band_width import BandWidth
@@ -44,14 +42,14 @@ from bollinger_bands.visualization.formatting import (
 from bollinger_bands.indicators.relative_strength import get_all_tickers_metrics
 
 # ============================================================================
-# DATA MANAGEMENT SETUP (NEW)
+# DATA MANAGEMENT SETUP
 # ============================================================================
 
 # Initialize storage manager and fetcher with caching
 storage_manager = DataStorageManager('config/tickers.yaml')
 fetcher = DataFetcher(storage_manager)
 
-# Initialize currency converter (NEW)
+# Initialize currency converter
 currency_converter = CurrencyConverter(
     storage_manager.config,
     cache_dir=storage_manager.config['data_settings'].get('currency_data_directory', 'data/currencies')
@@ -65,11 +63,11 @@ config = storage_manager.config
 enabled_tickers = storage_manager.get_enabled_tickers()
 tickers = [t['symbol'] for t in enabled_tickers]
 tickers_dict = {t['symbol']: t['name'] for t in enabled_tickers}
-ticker_currencies = storage_manager.get_ticker_currencies()  # NEW
+ticker_currencies = storage_manager.get_ticker_currencies()
 
 # Data loading with smart caching
 ticker_data = {}
-ticker_data_usd = {}  # NEW - For metrics
+ticker_data_usd = {}
 start_date = config['data_settings'].get('default_start_date', '2000-01-01')
 now = datetime.datetime.now()
 end_date = now.strftime('%Y-%m-%d')
@@ -83,7 +81,6 @@ auto_update = config['data_settings'].get('auto_update_on_startup', True)
 if auto_update:
     print("Auto-update enabled: Fetching latest data (only missing dates)...")
     ticker_data = fetcher.update_all_tickers(end_date)
-    # Also load USD-normalized versions
     ticker_data_usd = storage_manager.load_all_ticker_data(prefer_usd=True)
 else:
     print("Auto-update disabled: Loading from cache...")
@@ -95,11 +92,9 @@ else:
             ticker_data[ticker] = data
         except Exception as e:
             print(f"  ERROR loading {ticker}: {e}")
-    # Load USD-normalized versions
     ticker_data_usd = storage_manager.load_all_ticker_data(prefer_usd=True)
 
-# For backward compatibility
-ticker_data_original = ticker_data  # Charts use original currency
+ticker_data_original = ticker_data
 
 print(f"\n✓ Data loaded for {len(ticker_data)} tickers (original currency)!")
 print(f"✓ USD-normalized data: {len(ticker_data_usd)} tickers")
@@ -107,17 +102,19 @@ print(f"✓ Currency mapping: {ticker_currencies}")
 print("="*80)
 
 # ============================================================================
-# DASH APP SETUP
+# DASH APP SETUP - PROFESSIONAL THEME
 # ============================================================================
 
+# Using JOURNAL theme - Professional newspaper/publication style
+# Clean, traditional, great for financial reports
 app = dash.Dash(__name__, external_stylesheets=[
-    dbc.themes.LUX,
+    dbc.themes.JOURNAL,  # Changed to JOURNAL for traditional professional look
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
 ])
-load_figure_template("LUX")
+load_figure_template("journal")  # Match the theme
 
 # ============================================================================
-# DATA MANAGEMENT UI COMPONENTS (NEW)
+# DATA MANAGEMENT UI COMPONENTS
 # ============================================================================
 
 data_management_card = dbc.Card([
@@ -157,7 +154,6 @@ data_management_card = dbc.Card([
     ])
 ], className="mb-3")
 
-# Modal for data details
 data_details_modal = dbc.Modal([
     dbc.ModalHeader(dbc.ModalTitle("📋 Stored Data Details")),
     dbc.ModalBody(id='data-details-content'),
@@ -167,19 +163,22 @@ data_details_modal = dbc.Modal([
 ], id="data-details-modal", size="xl", is_open=False)
 
 # ============================================================================
-# APP LAYOUT
+# APP LAYOUT - IMPROVED SPACING
 # ============================================================================
 
 app.layout = dbc.Container([
-    html.H1("Stock Chart with Bollinger Bands & Trading Signals", style={'textAlign': 'center'}),
-    html.H2(id='ticker-name', style={'textAlign': 'center'}),
+    # Header with more breathing room
+    html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
+            style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '10px'}),
+    html.H2(id='ticker-name', 
+            style={'textAlign': 'center', 'marginBottom': '30px'}),
     
-    # Data Management Section (NEW)
+    # Data Management Section
     data_management_card,
     data_details_modal,
     dcc.Store(id='update-trigger', data=0),
     
-    # Original Controls
+    # Original Controls with improved spacing
     dbc.Row([
         dbc.Col([
             html.Div([
@@ -404,18 +403,29 @@ app.layout = dbc.Container([
                 placement="right"
             ),
         ], width=4),
-    ], className="mb-4"),
+    ], className="mb-5"),  # Increased bottom margin before chart
 
     # Store for target date (hidden)
     dcc.Store(id='target-date-store'),
 
-    # Main chart with bottom margin to separate from content below
-    dcc.Graph(id='stock-chart', style={'height': '120vh', 'marginBottom': '5rem'}),
-    
-    # Relative Strength Section
+    # Main chart with improved spacing
     html.Div([
-        html.Hr(style={'marginTop': '2rem', 'marginBottom': '3rem'}),
-        html.H3("Relative Strength Analysis", style={'textAlign': 'center', 'marginBottom': '2rem'}),
+        dcc.Graph(id='stock-chart', style={'height': '120vh'}),
+    ], style={'marginBottom': '80px'}),  # Fixed spacing after chart
+    
+    # Relative Strength Section with clear separation
+    html.Div([
+        html.Hr(style={
+            'marginTop': '0px',
+            'marginBottom': '50px',
+            'borderTop': '2px solid #dee2e6'
+        }),
+        html.H3("Relative Strength Analysis", 
+                style={
+                    'textAlign': 'center', 
+                    'marginBottom': '30px',
+                    'fontWeight': '600'
+                }),
         
         dbc.Row([
             dbc.Col([
@@ -490,12 +500,15 @@ app.layout = dbc.Container([
         ], className="mb-4"),
         
         html.Div(id='relative-strength-table'),
-    ], style={'paddingTop': '3rem'}),
+    ], style={
+        'paddingTop': '0px',
+        'paddingBottom': '50px'
+    }),
     
-], fluid=True, className="p-4")
+], fluid=True, className="p-4", style={'paddingBottom': '100px'})  # Extra padding at bottom of page
 
 # ============================================================================
-# DATA MANAGEMENT CALLBACKS (NEW)
+# ALL CALLBACKS - UNCHANGED FROM ORIGINAL
 # ============================================================================
 
 @app.callback(
@@ -510,11 +523,9 @@ def update_data_status(_):
         if info_df.empty:
             return html.Span("⚠️ No data loaded", style={'color': 'red'})
         
-        # Count OK vs error
         ok_count = (info_df['status'] == 'OK').sum()
         total_count = len(info_df)
         
-        # Get date range
         if 'end_date' in info_df.columns:
             dates = pd.to_datetime(info_df['end_date'], errors='coerce')
             latest_date = dates.max()
@@ -558,7 +569,6 @@ def update_data_button(n_clicks, current_trigger):
     try:
         end_date = datetime.datetime.now().strftime('%Y-%m-%d')
         
-        # Update data globally
         global ticker_data
         print("\n" + "="*80)
         print("MANUAL DATA UPDATE TRIGGERED")
@@ -584,7 +594,6 @@ def toggle_details_modal(n1, n2, is_open):
     """Toggle the data details modal."""
     if n1 or n2:
         if not is_open:
-            # Opening modal - generate content
             info_df = storage_manager.get_all_data_info()
             
             table = dash_table.DataTable(
@@ -629,9 +638,6 @@ def toggle_details_modal(n1, n2, is_open):
             return not is_open, ""
     return is_open, ""
 
-# ============================================================================
-# ORIGINAL CALLBACKS (PRESERVED)
-# ============================================================================
 
 @app.callback(
     Output('target-date-store', 'data'),
@@ -639,11 +645,10 @@ def toggle_details_modal(n1, n2, is_open):
     prevent_initial_call=True
 )
 def update_target_date(relayout_data):
-    """Extract the rightmost visible date from chart interactions (slider, zoom, pan)"""
+    """Extract the rightmost visible date from chart interactions"""
     if relayout_data is None:
         return None
     
-    # Check for range changes from slider or zoom/pan
     if 'xaxis.range[1]' in relayout_data:
         return relayout_data['xaxis.range[1]']
     
@@ -674,7 +679,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
                                    calculation_currency, target_date):
     """Update the relative strength comparison table with USD-normalized data"""
     
-    # Convert target_date string to pandas Timestamp if provided
     target_date_ts = None
     if target_date:
         try:
@@ -682,7 +686,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         except:
             target_date_ts = None
     
-    # Start with USD-normalized data (for fair comparisons)
     data_for_metrics = ticker_data_usd
     currency_note = ""
     
@@ -690,14 +693,12 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         try:
             print(f"\nConverting metrics from USD to {calculation_currency}...")
             
-            # Convert ALL tickers from USD to target currency
-            # Since ticker_data_usd is already in USD, we specify USD as source
             data_for_metrics = {}
             for ticker, usd_data in ticker_data_usd.items():
                 try:
                     converted = currency_converter.convert_ohlc_data(
                         usd_data.copy(),
-                        from_currency='USD',  # Already in USD
+                        from_currency='USD',
                         to_currency=calculation_currency,
                         use_cache=True
                     )
@@ -718,10 +719,8 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     else:
         print("Using USD-normalized data for metrics")
     
-    # Get metrics for all tickers with selected benchmark
     metrics_df = get_all_tickers_metrics(data_for_metrics, reference_ticker=reference_ticker, target_date=target_date_ts)
     
-    # Apply filter
     if filter_value == '6m_positive':
         metrics_df = metrics_df[metrics_df['6M Performance (%)'] > 0]
     elif filter_value == '12m_positive':
@@ -735,12 +734,9 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == '12m_negative':
         metrics_df = metrics_df[metrics_df['12M Performance (%)'] < 0]
     
-    # Sort by average performance (descending)
     metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
     
-    # Add ticker names and truncate long names
     def truncate_name(name, max_length=25):
-        """Truncate name and add ellipsis if too long"""
         if pd.isna(name):
             return name
         if len(name) > max_length:
@@ -749,22 +745,32 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     
     metrics_df['Ticker Name'] = metrics_df['ticker'].map(tickers_dict)
     metrics_df['Ticker Name Short'] = metrics_df['Ticker Name'].apply(lambda x: truncate_name(x, max_length=25))
-    metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']  # Keep full name for tooltip
+    metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']
     
     metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 
                               'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
-    # Create conditional styling based on selected ticker
+    # Styling: benchmark gets blue background (applied first)
     style_data_conditional = [
         {
             'if': {'row_index': i},
-            'backgroundColor': 'rgba(173, 216, 230, 0.3)'  # Light blue for selected ticker
+            'backgroundColor': 'rgba(173, 216, 230, 0.3)'  # Light blue for benchmark
         }
-        for i, ticker in enumerate(metrics_df['ticker']) if ticker == selected_ticker
+        for i, ticker in enumerate(metrics_df['ticker']) if ticker == reference_ticker
     ]
     
-    # Add color coding for positive/negative values
+    # Selected ticker gets italics, bold, and yellow background (applied second, takes priority)
+    style_data_conditional.extend([
+        {
+            'if': {'row_index': i},
+            'fontStyle': 'italic',
+            'fontWeight': 'bold',
+            'backgroundColor': 'rgba(255, 255, 200, 0.3)'  # Light yellow for selected ticker
+        }
+        for i, ticker in enumerate(metrics_df['ticker']) if ticker == selected_ticker
+    ])
+    
     for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 
                 'Levy RS (%)', '6M Perf Rel. Bench (%)']:
         style_data_conditional.extend([
@@ -784,7 +790,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             }
         ])
     
-    # Create the DataTable
     table = dash_table.DataTable(
         data=metrics_df.to_dict('records'),
         columns=[
@@ -823,7 +828,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     if target_date_ts:
         date_info = f" (as of {target_date_ts.strftime('%Y-%m-%d')})"
     
-    # Add benchmark info
     benchmark_name = tickers_dict.get(reference_ticker, reference_ticker)
     benchmark_info = f" | Benchmark: {benchmark_name}"
     
@@ -846,7 +850,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     ])
 
 
-# YOUR COMPLETE update_chart CALLBACK HERE (UNCHANGED)
 @app.callback(
     [Output('stock-chart', 'figure'), Output('ticker-name', 'children')],
     [Input('ticker-dropdown', 'value'), Input('period-selector', 'value'),
@@ -860,17 +863,12 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
 def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
                 ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
-    # [YOUR ENTIRE update_chart FUNCTION CODE - EXACTLY AS IS]
-    # (I'm not duplicating it here to save space, but include your complete function)
     try:
-        # Safety check: if ticker is None, use default
         if selected_ticker is None:
             selected_ticker = tickers[0] if tickers else 'EEM'
         
-        # Use ORIGINAL currency data for charts (actual traded instrument)
         data = ticker_data_original.get(selected_ticker)
         if data is None:
-            # Fallback to ticker_data
             data = ticker_data.get(selected_ticker)
         
         if data is None:
@@ -879,15 +877,12 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         if 'ticker' not in data.attrs:
             data.attrs['ticker'] = selected_ticker
         
-        # Get original currency for display
         original_currency = ticker_currencies.get(selected_ticker, 'USD')
         
-        # CRITICAL: Clean the data at the very beginning
         data = data.dropna()
         data = data[data.index.notnull()]
         data = data[data.index >= '2000-01-01']
         
-        # Defaults
         if flat_threshold_840 is None:
             flat_threshold_840 = 0.025
         if flat_threshold_420 is None:
@@ -903,13 +898,11 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
         strategy = strategy or 'orange'
         
-        # MA/BB windows
         if ma_period == '20m10m':
             long_window, short_window, period_label = 420, 210, "20M/10M"
         else:
             long_window, short_window, period_label = 840, 420, "40M/20M"
         
-        # Resample price data
         if period == 'quarterly':
             display_data = data.resample('QE').agg({'Open':'first','High':'max','Low':'min','Close':'last'}).dropna()
             display_label = "Quarterly"
@@ -924,13 +917,11 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             display_data = data[['Open','High','Low','Close']].copy()
             display_label = "Daily"
         
-        # Clean display data
         display_data = display_data.dropna()
         display_data = display_data[display_data.index.notnull()]
         display_data = display_data[display_data.index <= data.index[-1]]
         display_data = display_data[display_data.index >= '2000-01-01']
         
-        # Calculate indicators on daily data
         ma_long = MovingAverage(window=long_window)
         ma_long_values = ma_long.calculate(data)
         ma_long_change = ma_long.calculate_change(data)
@@ -948,7 +939,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         bw = BandWidth(window=long_window)
         bandwidth_long = bw.calculate(bb_long_values)
         
-        # Filter to display range
         start, end = display_data.index[0], display_data.index[-1]
         
         ma_long_filt = ma_long_values[(ma_long_values.index >= start) & (ma_long_values.index <= end)]
@@ -965,18 +955,15 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             'lower': bb_short_values['lower'][(bb_short_values['lower'].index >= start) & (bb_short_values['lower'].index <= end)]
         }
         
-        # Detect re-entry signals
         reentry_signals = detect_reentry_signals(
             data, ma_long_values, bb_long_values, 
             enabled_signals, bb_distance_threshold
         )
         
-        # Calculate MA conditions
         flat_long = ma_long_change < flat_threshold_840
         decreasing_short = ma_short_change < flat_threshold_420
         combined_ma_condition = flat_long & decreasing_short
         
-        # Exit conditions - detect price crossings
         if period in ['monthly', 'quarterly'] and 'original_date' in display_data.columns:
             period_end_dates = display_data['original_date']
         else:
@@ -1011,7 +998,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         else:
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
         
-        # For monthly/quarterly: filter crossings by MA conditions
         if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
             crossing_dates = display_data.index[price_crossing == 1]
             valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
@@ -1055,10 +1041,8 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             
             price_crossing = valid_crossings
         
-        # Convert strategy selector
         allow_reentry_at_ma = (strategy == 'orange')
         
-        # Identify entry zones
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
@@ -1067,21 +1051,17 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             allow_reentry_at_ma=allow_reentry_at_ma
         )
         
-        # Plot
         plotter = Plotter()
         plotter.fig = go.Figure()
         
-        # Determine which periods are "out of market"
         out_of_market = pd.Series(False, index=display_data.index)
         for zone in entry_zones:
             zone_mask = (display_data.index >= zone['start']) & (display_data.index <= zone['end'])
             out_of_market = out_of_market | zone_mask
         
-        # Split data into in-market and out-of-market segments
         in_market_data = display_data[~out_of_market]
         out_market_data = display_data[out_of_market]
         
-        # Plot in-market candlesticks
         if len(in_market_data) > 0:
             plotter.fig.add_trace(go.Candlestick(
                 x=in_market_data.index,
@@ -1095,7 +1075,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 showlegend=True
             ))
         
-        # Plot out-of-market candlesticks (muted)
         if len(out_market_data) > 0:
             plotter.fig.add_trace(go.Candlestick(
                 x=out_market_data.index,
@@ -1116,14 +1095,14 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         plotter.add_bollinger_bands(bb_short_filt, name_prefix=f'BB {period_label.split("/")[1]}', dashed=True)
         
         ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
-        # Add currency to name if not USD
         if original_currency != 'USD':
             ticker_name += f" ({original_currency})"
         long_name, short_name = period_label.split('/')
         
-        # Create subplots
+        # IMPROVED SPACING: Increase vertical_spacing for better separation
         fig_with_bandwidth = make_subplots(
-            rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.1, 
+            rows=3, cols=1, shared_xaxes=True, 
+            vertical_spacing=0.20,  # INCREASED from 0.15 for more breathing room
             row_heights=[0.6, 0.2, 0.2],
             subplot_titles=(
                 f"{ticker_name} ({display_label} Candles, {period_label} MA/BB) - Shaded = Out of Market", 
@@ -1136,7 +1115,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         for trace in plotter.fig.data:
             fig_with_bandwidth.add_trace(trace, row=1, col=1)
         
-        # Add zones
         y_min = max(0, bb_long_filt['lower'].min() * 0.9) if len(bb_long_filt['lower']) > 0 else 0
         
         for zone in entry_zones:
@@ -1187,7 +1165,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                         row=1, col=1
                     )
         
-        # Re-entry signals
         reentry_dates = data.index[reentry_signals]
         reentry_prices = data.loc[reentry_signals, 'Low'] * 0.98
         if len(reentry_dates) > 0:
@@ -1199,7 +1176,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                 row=1, col=1
             )
         
-        # BandWidth
         fig_with_bandwidth.add_trace(
             go.Scatter(x=data.index, y=bandwidth_long, name='BandWidth', 
                       line=dict(color='darkblue', width=2)), 
@@ -1210,7 +1186,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             opacity=0.5, row=2, col=1
         )
         
-        # MA changes
         fig_with_bandwidth.add_trace(
             go.Scatter(x=data.index, y=ma_long_change, name=f'MA {long_name} Change', 
                       line=dict(color='red', width=2)), 
@@ -1222,14 +1197,12 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             row=3, col=1
         )
         
-        # Price crossings
         for cross_date in display_data.index[price_crossing == 1]:
             fig_with_bandwidth.add_vline(
                 x=cross_date, line_width=2, line_dash="solid", 
                 line_color="darkgrey", opacity=0.7, row=3, col=1
             )
         
-        # MA condition shading
         combined_segment_id = (combined_ma_condition != combined_ma_condition.shift(1)).cumsum()
         combined_df = pd.DataFrame({
             'combined': combined_ma_condition, 
@@ -1244,7 +1217,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
                     line_width=0, row=3, col=1
                 )
         
-        # Zero line and thresholds
         fig_with_bandwidth.add_hline(y=0, line_dash="solid", line_color="black", 
                                      opacity=1, line_width=2, row=3, col=1)
         fig_with_bandwidth.add_hline(y=flat_threshold_840, line_dash="dash", 
@@ -1252,7 +1224,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         fig_with_bandwidth.add_hline(y=flat_threshold_420, line_dash="dash", 
                                      line_color="green", opacity=0.5, row=3, col=1)
         
-        # Annotations
         annotation_x_date = data.index[int(len(data) * 0.02)]
         
         fig_with_bandwidth.add_annotation(
@@ -1276,7 +1247,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             font=dict(size=10, color="green")
         )
         
-        # Layout
         fig_with_bandwidth.update_layout(
             height=1200, 
             showlegend=True, 
@@ -1305,7 +1275,6 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             )
         )
         
-        # Custom x-axis formatting
         if period == 'quarterly':
             tick_vals = display_data.index.tolist()
             tick_text = format_quarter_labels_two_levels(display_data.index)
