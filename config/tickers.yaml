@@ -94,19 +94,21 @@ currency_settings:
   # Default display currency
   default_currency: USD
   
-  # Currency pair symbols for fetching exchange rates from yfinance
-  # Format: XXXYYY=X where XXX is base currency and YYY is quote currency
+  #  Currency pair symbols for fetching exchange rates from yfinance
+  # Strategy: Define only USD to other currencies
+  # All non-USD tickers will be normalized to USD first, then converted to target
+  # Format: Quote currency symbols (e.g., CHF=X means "CHF per 1 USD")
   currency_pairs:
-    USDCHF: "CHF=X"      # USD to CHF
-    USDEUR: "EUR=X"      # USD to EUR  (inverted - EUR per USD)
-    USDGBP: "GBP=X"      # USD to GBP  (inverted - GBP per USD)
-    USDJPY: "JPY=X"      # USD to JPY  (inverted - JPY per USD)
-    EURCHF: "EURCHF=X"   # EUR to CHF
-    GBPCHF: "GBPCHF=X"   # GBP to CHF
-    JPYCHF: "JPYCHF=X"   # JPY to CHF
-    EURGBP: "EURGBP=X"   # EUR to GBP
-    EURJPY: "EURJPY=X"   # EUR to JPY
-    GBPJPY: "GBPJPY=X"   # GBP to JPY
+    # USD to major currencies (quote format: XXX per 1 USD)
+    USDCHF: "CHF=X"       # Swiss Franc per 1 USD
+    USDEUR: "EUR=X"       # Euro per 1 USD (try this first, fallback to EURUSD=X inverted)
+    USDGBP: "GBP=X"       # British Pound per 1 USD (try this first, fallback to GBPUSD=X inverted)
+    USDJPY: "JPY=X"       # Japanese Yen per 1 USD
+    
+    # Fallback pairs (base format: USD per 1 XXX) - will be inverted
+    EURUSD: "EURUSD=X"    # USD per 1 EUR (fallback if EUR=X doesn't work)
+    GBPUSD: "GBPUSD=X"    # USD per 1 GBP (fallback if GBP=X doesn't work)
+
 
 # Data settings
 data_settings:

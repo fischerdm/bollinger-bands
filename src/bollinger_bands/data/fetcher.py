@@ -121,8 +121,12 @@ class DataFetcher:
             # Merge with existing data
             merged_data = self.storage_manager.merge_data(existing_data, combined_new_data)
             
-            # Save merged data
-            self.storage_manager.save_ticker_data(ticker, merged_data)
+            # Get currency for this ticker
+            ticker_currencies = self.storage_manager.get_ticker_currencies()
+            currency = ticker_currencies.get(ticker, 'USD')
+            
+            # Save merged data (will auto-create USD version if needed)
+            self.storage_manager.save_ticker_data(ticker, merged_data, currency=currency)
             
             # Filter to requested date range
             mask = (merged_data.index >= start_date) & (merged_data.index <= end_date)
@@ -211,12 +215,13 @@ class DataFetcher:
         """
         Update all tickers with latest data up to end_date.
         Only fetches missing dates.
+        Automatically creates/updates USD-normalized versions for non-USD tickers.
         
         Args:
             end_date: End date (YYYY-MM-DD)
             
         Returns:
-            Dictionary mapping ticker symbols to DataFrames
+            Dictionary mapping ticker symbols to DataFrames (original currency)
         """
         if self.storage_manager is None:
             raise ValueError("Storage manager required for this operation")
@@ -228,6 +233,7 @@ class DataFetcher:
         
         for ticker_info in tickers:
             ticker = ticker_info['symbol']
+            currency = ticker_info.get('currency', 'USD')
             
             try:
                 # Get existing data range
@@ -245,6 +251,10 @@ class DataFetcher:
                 data = self.fetch_ohlc_data(ticker, start_date, end_date, use_cache=True)
                 ticker_data[ticker] = data
                 
+                # Auto-create USD version if currency is not USD
+                # This happens automatically via save_ticker_data with also_save_usd=True
+                # (The save happens inside fetch_ohlc_data when use_cache=True)
+                
             except Exception as e:
                 logger.error(f"Failed to update {ticker}: {e}")
                 # Try to load existing data if update fails
@@ -254,6 +264,7 @@ class DataFetcher:
                 continue
         
         logger.info(f"Update complete for {len(ticker_data)} tickers")
+        logger.info("Note: USD-normalized versions auto-created for non-USD tickers")
         return ticker_data
 
     def resample_to_monthly(self, daily_data: pd.DataFrame) -> pd.DataFrame:

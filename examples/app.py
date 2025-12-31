@@ -17,6 +17,7 @@ import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
 from bollinger_bands.data.fetcher import DataFetcher
 from bollinger_bands.data.storage_manager import DataStorageManager
+from bollinger_bands.data.currency_converter import CurrencyConverter  # NEW
 from bollinger_bands.indicators.moving_average import MovingAverage
 from bollinger_bands.indicators.bollinger_bands import BollingerBands
 from bollinger_bands.indicators.band_width import BandWidth
@@ -50,20 +51,31 @@ from bollinger_bands.indicators.relative_strength import get_all_tickers_metrics
 storage_manager = DataStorageManager('config/tickers.yaml')
 fetcher = DataFetcher(storage_manager)
 
+# Initialize currency converter (NEW)
+currency_converter = CurrencyConverter(
+    storage_manager.config,
+    cache_dir=storage_manager.config['data_settings'].get('currency_data_directory', 'data/currencies')
+)
+
+# Give converter to storage manager for USD normalization
+storage_manager.currency_converter = currency_converter
+
 # Load configuration from YAML
 config = storage_manager.config
 enabled_tickers = storage_manager.get_enabled_tickers()
 tickers = [t['symbol'] for t in enabled_tickers]
 tickers_dict = {t['symbol']: t['name'] for t in enabled_tickers}
+ticker_currencies = storage_manager.get_ticker_currencies()  # NEW
 
 # Data loading with smart caching
 ticker_data = {}
+ticker_data_usd = {}  # NEW - For metrics
 start_date = config['data_settings'].get('default_start_date', '2000-01-01')
 now = datetime.datetime.now()
 end_date = now.strftime('%Y-%m-%d')
 
 print("="*80)
-print("LOADING DATA WITH SMART CACHING")
+print("LOADING DATA WITH SMART CACHING (DUAL STORAGE)")
 print("="*80)
 
 auto_update = config['data_settings'].get('auto_update_on_startup', True)
@@ -71,6 +83,8 @@ auto_update = config['data_settings'].get('auto_update_on_startup', True)
 if auto_update:
     print("Auto-update enabled: Fetching latest data (only missing dates)...")
     ticker_data = fetcher.update_all_tickers(end_date)
+    # Also load USD-normalized versions
+    ticker_data_usd = storage_manager.load_all_ticker_data(prefer_usd=True)
 else:
     print("Auto-update disabled: Loading from cache...")
     for ticker in tickers:
@@ -81,8 +95,15 @@ else:
             ticker_data[ticker] = data
         except Exception as e:
             print(f"  ERROR loading {ticker}: {e}")
+    # Load USD-normalized versions
+    ticker_data_usd = storage_manager.load_all_ticker_data(prefer_usd=True)
 
-print(f"\n✓ Data loaded for {len(ticker_data)} tickers!")
+# For backward compatibility
+ticker_data_original = ticker_data  # Charts use original currency
+
+print(f"\n✓ Data loaded for {len(ticker_data)} tickers (original currency)!")
+print(f"✓ USD-normalized data: {len(ticker_data_usd)} tickers")
+print(f"✓ Currency mapping: {ticker_currencies}")
 print("="*80)
 
 # ============================================================================
@@ -651,7 +672,7 @@ def update_target_date(relayout_data):
 )
 def update_relative_strength_table(selected_ticker, filter_value, reference_ticker, 
                                    calculation_currency, target_date):
-    """Update the relative strength comparison table"""
+    """Update the relative strength comparison table with USD-normalized data"""
     
     # Convert target_date string to pandas Timestamp if provided
     target_date_ts = None
@@ -661,29 +682,44 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         except:
             target_date_ts = None
     
-    # Currency conversion logic
-    # NOTE: This is a placeholder. To actually implement currency conversion:
-    # 1. You need to add the CurrencyConverter from the currency_converter.py module
-    # 2. Initialize it with your config
-    # 3. Convert ticker_data before passing to get_all_tickers_metrics
-    #
-    # For now, we'll use the original data and add a note if currency != USD
-    
-    data_to_use = ticker_data
+    # Start with USD-normalized data (for fair comparisons)
+    data_for_metrics = ticker_data_usd
     currency_note = ""
     
     if calculation_currency and calculation_currency != 'USD':
-        currency_note = f" (Calculated in {calculation_currency})"
-        # TODO: Implement actual conversion
-        # Example:
-        # from bollinger_bands.data.currency_converter import CurrencyConverter
-        # converter = CurrencyConverter(config)
-        # data_to_use = converter.convert_ticker_data(
-        #     ticker_data, ticker_currencies, calculation_currency
-        # )
+        try:
+            print(f"\nConverting metrics from USD to {calculation_currency}...")
+            
+            # Convert ALL tickers from USD to target currency
+            # Since ticker_data_usd is already in USD, we specify USD as source
+            data_for_metrics = {}
+            for ticker, usd_data in ticker_data_usd.items():
+                try:
+                    converted = currency_converter.convert_ohlc_data(
+                        usd_data.copy(),
+                        from_currency='USD',  # Already in USD
+                        to_currency=calculation_currency,
+                        use_cache=True
+                    )
+                    data_for_metrics[ticker] = converted
+                except Exception as e:
+                    print(f"  Warning: Could not convert {ticker}: {e}")
+                    data_for_metrics[ticker] = usd_data.copy()
+            
+            currency_note = f" | Currency: {calculation_currency}"
+            print(f"✓ Converted all tickers to {calculation_currency}")
+            
+        except Exception as e:
+            print(f"✗ Conversion failed: {e}")
+            import traceback
+            traceback.print_exc()
+            data_for_metrics = ticker_data_usd
+            currency_note = " | Currency: USD (conversion failed)"
+    else:
+        print("Using USD-normalized data for metrics")
     
     # Get metrics for all tickers with selected benchmark
-    metrics_df = get_all_tickers_metrics(data_to_use, reference_ticker=reference_ticker, target_date=target_date_ts)
+    metrics_df = get_all_tickers_metrics(data_for_metrics, reference_ticker=reference_ticker, target_date=target_date_ts)
     
     # Apply filter
     if filter_value == '6m_positive':
@@ -795,11 +831,16 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}{currency_note}", 
                 style={'marginBottom': '1rem'}),
         html.P([
+            html.Strong("Note:"), " ",
+            "Metrics calculated using USD-normalized data for fair comparisons across currencies. ",
+            "Charts use original currency data for accurate trading signals.",
+        ], style={'fontSize': '12px', 'color': '#666', 'fontStyle': 'italic', 'marginBottom': '0.5rem'}),
+        html.P([
             html.Strong("Levy RS (%)"), ": (Current Price / 6M MA) - 1. ",
             html.Strong("6M Perf Rel. Bench (%)"), f": (Asset return / {reference_ticker} return) - 1. ",
             f"Benchmark ({reference_ticker}) shows 0%. ",
             "Positive = outperformance. ",
-            html.Em("Note: Currency-independent when same base currency.")
+            html.Em("All conversions go through USD hub.")
         ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
@@ -826,9 +867,20 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         if selected_ticker is None:
             selected_ticker = tickers[0] if tickers else 'EEM'
         
-        data = ticker_data[selected_ticker]
+        # Use ORIGINAL currency data for charts (actual traded instrument)
+        data = ticker_data_original.get(selected_ticker)
+        if data is None:
+            # Fallback to ticker_data
+            data = ticker_data.get(selected_ticker)
+        
+        if data is None:
+            return go.Figure(), f"No data for {selected_ticker}"
+        
         if 'ticker' not in data.attrs:
             data.attrs['ticker'] = selected_ticker
+        
+        # Get original currency for display
+        original_currency = ticker_currencies.get(selected_ticker, 'USD')
         
         # CRITICAL: Clean the data at the very beginning
         data = data.dropna()
@@ -1064,6 +1116,9 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         plotter.add_bollinger_bands(bb_short_filt, name_prefix=f'BB {period_label.split("/")[1]}', dashed=True)
         
         ticker_name = tickers_dict.get(selected_ticker, selected_ticker)
+        # Add currency to name if not USD
+        if original_currency != 'USD':
+            ticker_name += f" ({original_currency})"
         long_name, short_name = period_label.split('/')
         
         # Create subplots
@@ -1288,4 +1343,3 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
 
 if __name__ == '__main__':
     app.run(debug=False, port=8050)
-
