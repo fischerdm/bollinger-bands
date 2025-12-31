@@ -751,13 +751,25 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
                               '12M Performance (%)', 'Avg Performance (%)', 
                               'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
+    # Styling: benchmark gets blue background (applied first)
     style_data_conditional = [
         {
             'if': {'row_index': i},
-            'backgroundColor': 'rgba(173, 216, 230, 0.3)'
+            'backgroundColor': 'rgba(173, 216, 230, 0.3)'  # Light blue for benchmark
+        }
+        for i, ticker in enumerate(metrics_df['ticker']) if ticker == reference_ticker
+    ]
+    
+    # Selected ticker gets italics, bold, and yellow background (applied second, takes priority)
+    style_data_conditional.extend([
+        {
+            'if': {'row_index': i},
+            'fontStyle': 'italic',
+            'fontWeight': 'bold',
+            'backgroundColor': 'rgba(255, 255, 200, 0.3)'  # Light yellow for selected ticker
         }
         for i, ticker in enumerate(metrics_df['ticker']) if ticker == selected_ticker
-    ]
+    ])
     
     for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 
                 'Levy RS (%)', '6M Perf Rel. Bench (%)']:
