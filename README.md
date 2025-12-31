@@ -138,7 +138,8 @@ The relative strength table shows:
 - Average performance ranking
 - Levy Relative Strength (RSL) indicator
 - Sortable and filterable columns for quick analysis
-- Highlighting of current selected ticker
+- Performance Metrics in different currencies
+- Highlighting of current selected ticker and benchmark
 
 
 ## Strategy Implementation
