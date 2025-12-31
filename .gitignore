@@ -1,3 +1,19 @@
+# ============================================================================
+# Data Files (cache only, not source code)
+# ============================================================================
+
+# All CSV files under /data/ (including subdirectories)
+/data/**/*.csv
+
+# Other data formats if you use them
+/data/**/*.pkl
+/data/**/*.parquet
+/data/**/*.h5
+
+# ============================================================================
+# Python
+# ============================================================================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -209,8 +225,3 @@ __marimo__/
 
 # macOS
 .DS_Store
-
-
-# Data cache
-data/
-data/raw/*.csv
