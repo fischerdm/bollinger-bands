@@ -163,9 +163,17 @@ data_details_modal = dbc.Modal([
 # ============================================================================
 
 app.layout = dbc.Container([
-    # Header with more breathing room
+    # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
-            style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '10px'}),
+            style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
+    html.H4("Based on Alfons Cortés' Trading Strategy", 
+            style={
+                'textAlign': 'center', 
+                'marginBottom': '20px', 
+                'fontStyle': 'italic', 
+                'color': '#666',
+                'fontWeight': '400'
+            }),
     html.H2(id='ticker-name', 
             style={'textAlign': 'center', 'marginBottom': '30px'}),
     
@@ -499,6 +507,118 @@ app.layout = dbc.Container([
     ], style={
         'paddingTop': '0px',
         'paddingBottom': '50px'
+    }),
+    
+    # Attribution footer
+    html.Hr(style={
+        'marginTop': '50px', 
+        'marginBottom': '30px',
+        'borderTop': '1px solid #dee2e6'
+    }),
+    html.Div([
+        html.H6("About This Implementation", 
+                style={'fontWeight': 'bold', 'marginBottom': '15px', 'textAlign': 'center'}),
+        html.P([
+            "This dashboard implements the Bollinger Bands trading strategy as described in articles by ",
+            html.Strong("Alfons Cortés"), ". ",
+            "The strategy is rooted in ",
+            html.Strong("Behavioral Finance"), " principles and focuses on identifying entry and exit points using moving averages, ",
+            "Bollinger Bands, and specific candlestick patterns. ",
+            "This implementation attempts to faithfully reproduce the methodology while adding ",
+            "interactive visualization and analysis tools."
+        ], style={
+            'fontSize': '14px', 
+            'color': '#666', 
+            'lineHeight': '1.6',
+            'textAlign': 'center',
+            'maxWidth': '800px',
+            'margin': '0 auto 20px auto'
+        }),
+        
+        # Resources section
+        html.Div([
+            html.H6("Source Articles", style={'fontWeight': 'bold', 'marginBottom': '10px'}),
+            
+            html.P("Trading Signals & Strategy:", 
+                   style={'fontWeight': '600', 'fontSize': '13px', 'marginBottom': '5px', 'marginTop': '15px'}),
+            html.Ul([
+                html.Li([
+                    html.A("In Dubio Pro Tauris", 
+                           href="https://themarket.ch/meinung/alfons-cortes-in-dubio-pro-tauris-ld.3769",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Keine Angst vor spekulativen Blasen", 
+                           href="https://themarket.ch/meinung/keine-angst-vor-spekulativen-blasen-ld.1582",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Plädoyer für mehr Gelassenheit an den Börsen", 
+                           href="https://themarket.ch/makro-maerkte/alfons-cortes-plaedoyer-fuer-mehr-gelassenheit-an-den-boersen-ld.15612",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Hinter Capex und Gold steht die gleiche Erzählung", 
+                           href="https://themarket.ch/makro-maerkte/hinter-capex-und-gold-steht-die-gleiche-erzaehlung-ld.15296",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+            ], style={'textAlign': 'left', 'fontSize': '13px', 'lineHeight': '1.8'}),
+            
+            html.P("Relative Strength Analysis:", 
+                   style={'fontWeight': '600', 'fontSize': '13px', 'marginBottom': '5px', 'marginTop': '15px'}),
+            html.Ul([
+                html.Li([
+                    html.A("Der MSCI World bleibt der Leuchtturm im Nebel", 
+                           href="https://www.fuw.ch/der-msci-world-bleibt-der-leuchtturm-im-nebel-994955555043",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Das sind die stärksten Aktien der Welt", 
+                           href="https://themarket.ch/makro-maerkte/das-sind-die-staerksten-aktien-der-welt-ld.15600",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Kurs halten in ruhigen wie in turbulenten Zeiten", 
+                           href="https://themarket.ch/meinung/kurs-halten-in-ruhigen-wie-in-turbulenten-zeiten-ld.14426",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+                html.Li([
+                    html.A("Ein Bekenntnis zum selektiven Bullenmarkt", 
+                           href="https://themarket.ch/makro-maerkte/ein-bekenntnis-zum-selektiven-bullenmarkt-ld.15171",
+                           target="_blank",
+                           style={'color': '#007bff'})
+                ]),
+            ], style={'textAlign': 'left', 'fontSize': '13px', 'lineHeight': '1.8'}),
+        ], style={
+            'maxWidth': '600px',
+            'margin': '20px auto 15px auto',
+            'textAlign': 'center'
+        }),
+        
+        html.P([
+            html.Em("Note: Any errors or misinterpretations of the original strategy are the responsibility ",
+            "of this implementation's author.")
+        ], style={
+            'fontSize': '12px', 
+            'color': '#888', 
+            'marginTop': '20px',
+            'textAlign': 'center'
+        }),
+    ], style={
+        'paddingTop': '30px', 
+        'paddingBottom': '60px',
+        'backgroundColor': '#f8f9fa',
+        'marginLeft': '-2rem',
+        'marginRight': '-2rem',
+        'paddingLeft': '2rem',
+        'paddingRight': '2rem',
     }),
     
 ], fluid=True, className="p-4", style={'paddingBottom': '100px'})  # Extra padding at bottom of page
@@ -1304,7 +1424,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         plotter = Plotter()
         fig = plotter.plot_candlestick(ticker_data.get(selected_ticker, list(ticker_data.values())[0]), name=selected_ticker)
         return fig, f"Error: {selected_ticker}"
-
+    
 
 def main():
     """Entry point for the application"""
