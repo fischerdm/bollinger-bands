@@ -1,3 +1,5 @@
+# src/bollinger_bands/__main__.py
+
 """
 Bollinger Bands Dashboard
 Run with: python -m bollinger_bands
