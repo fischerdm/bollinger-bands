@@ -412,24 +412,18 @@ app.layout = dbc.Container([
     # Store for target date (hidden)
     dcc.Store(id='target-date-store'),
 
-    # Main chart with improved spacing
+    # Main chart with fixed height to prevent layout shifts
     html.Div([
-        dcc.Graph(id='stock-chart', style={'height': '120vh'}),
+        dcc.Graph(id='stock-chart', style={'height': '1200px'}),  # Fixed height instead of 120vh
     ], style={'marginBottom': '80px'}),  # Fixed spacing after chart
     
-    # Relative Strength Section with clear separation
+    # Relative Strength Section - separator line only (no title)
     html.Div([
         html.Hr(style={
             'marginTop': '0px',
-            'marginBottom': '50px',
-            'borderTop': '2px solid #dee2e6'
+            'marginBottom': '40px',
+            'borderTop': '3px solid #495057'  # Thicker (3px) and darker line
         }),
-        html.H3("Relative Strength Analysis", 
-                style={
-                    'textAlign': 'center', 
-                    'marginBottom': '30px',
-                    'fontWeight': '600'
-                }),
         
         dbc.Row([
             dbc.Col([
@@ -1423,8 +1417,7 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
         traceback.print_exc()
         plotter = Plotter()
         fig = plotter.plot_candlestick(ticker_data.get(selected_ticker, list(ticker_data.values())[0]), name=selected_ticker)
-        return fig, f"Error: {selected_ticker}"
-    
+        return fig, f"Error: {selected_ticker}"    
 
 def main():
     """Entry point for the application"""
