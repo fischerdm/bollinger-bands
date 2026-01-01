@@ -356,9 +356,9 @@ Core dependencies automatically installed:
 - dash-bootstrap-components (UI components)
 - pyyaml (configuration management)
 
-## Installation
+# Installation & Usage
 
-### Quick Start
+## Clone Repository
 
 ```bash
 # Clone repository
@@ -371,18 +371,78 @@ source .venv/bin/activate  # On macOS/Linux
 # or
 .venv\Scripts\activate  # On Windows
 
-# Install dependencies
+# Install in editable mode
 pip install -e .
-
-# Download initial data
-python manage_data.py update
-
-# Launch application
-cd examples
-python app.py
 ```
 
-Access application at: `http://localhost:8050`
+## Running the Dashboard
+
+```bash
+python -m bollinger_bands
+```
+
+**Or:**
+
+```bash
+python examples/app.py
+```
+
+**Access the application at:** `http://localhost:8050`
+
+## First Run
+
+On first run, the application will:
+1. ✅ Check for `config/tickers.yaml` (included in repository)
+2. ✅ Create `data/ohlc/` directory if needed
+3. ✅ Create `data/currencies/` directory if needed
+4. ✅ Download ticker data (if `auto_update_on_startup: true`)
+5. ✅ Start the web server on `http://localhost:8050`
+
+## Customization
+
+Edit `config/tickers.yaml` to:
+- Add or remove tickers
+- Change data directory locations
+- Enable/disable auto-update on startup
+- Configure default date ranges
+
+## Updating
+
+```bash
+cd bollinger-bands
+git pull origin main
+pip install -e .  # Reinstall if dependencies changed
+```
+
+## Troubleshooting
+
+**"Module 'bollinger_bands' not found"**
+```bash
+# Make sure you're in the project directory
+cd bollinger-bands
+
+# Reinstall
+pip install -e .
+```
+
+**"Config file not found"**
+```bash
+# Make sure config/tickers.yaml exists
+ls config/tickers.yaml
+
+# If missing, it should be in the repository
+git pull
+```
+
+**"Port 8050 already in use"**
+```bash
+# Kill existing process
+lsof -ti:8050 | xargs kill -9  # macOS/Linux
+# OR
+netstat -ano | findstr :8050  # Windows (find PID)
+taskkill /PID <PID> /F  # Windows (kill process)
+```
+
 
 ### Detailed Installation
 
@@ -392,7 +452,7 @@ See `docs/installation_guide.md` for comprehensive installation instructions, tr
 
 ### Web Application
 
-1. **Launch**: `python app.py` (from examples directory)
+1. **Launch**: `python app.py` (from examples directory) or `python -m bollinger_bands`
 2. **Select Ticker**: Choose from dropdown
 3. **Configure View**: Select timeframe and parameters
 4. **Analyze Signals**: Review charts and zones
