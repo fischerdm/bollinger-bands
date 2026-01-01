@@ -24,6 +24,28 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=6.2.0", "black>=21.7b0", "flake8>=3.9.2"]
 
+# ============================================================================
+# SETUPTOOLS CONFIGURATION
+# ============================================================================
+
 [tool.setuptools]
-package-dir = { "" = "src" }  # Specify the src/ layout
-packages = ["bollinger_bands"]  # List your package(s)
+# Tell setuptools to look for packages in src/
+package-dir = { "" = "src" }
+
+# Automatically find all packages in src/
+# This replaces the manual packages = ["bollinger_bands"] list
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Include non-Python files in the package (like YAML configs)
+# NOTE: This is for when you move config INTO the package (future enhancement)
+# For now, config/tickers.yaml stays in project root, so this section
+# is prepared for future use
+[tool.setuptools.package-data]
+bollinger_bands = [
+    "config/*.yaml",     # Future: when config moves to src/bollinger_bands/config/
+    "config/*.yml",
+]
+
+# Ensure package data is included in distributions
+include-package-data = true
