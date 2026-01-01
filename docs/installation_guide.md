@@ -153,6 +153,12 @@ cd examples
 python app.py
 ```
 
+or 
+
+```bash
+python -m bollinger_bands
+```
+
 The application will start and display:
 ```
 Dash is running on http://127.0.0.1:8050/
