@@ -166,7 +166,7 @@ app.layout = dbc.Container([
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
             style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
-    html.H4("Based on and Inspired by Alfons Cortés' Trading Strategy", 
+    html.H4("Based on Alfons Cortés' Trading Strategy", 
             style={
                 'textAlign': 'center', 
                 'marginBottom': '20px', 
@@ -517,7 +517,7 @@ app.layout = dbc.Container([
         html.H6("About This Implementation", 
                 style={'fontWeight': 'bold', 'marginBottom': '15px', 'textAlign': 'center'}),
         html.P([
-            "This dashboard implements a trading strategy based on and inspired by the Bollinger "
+            "This dashboard implements a trading strategy based on the Bollinger "
             "Bands methodology described in articles by  ",
             html.Strong("Alfons Cortés"), ". ",
             "The strategy is rooted in ",
