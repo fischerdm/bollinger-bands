@@ -166,7 +166,7 @@ app.layout = dbc.Container([
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
             style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
-    html.H4("Based on Alfons Cortés' Trading Strategy", 
+    html.H4("Based on and Inspired by Alfons Cortés' Trading Strategy", 
             style={
                 'textAlign': 'center', 
                 'marginBottom': '20px', 
@@ -504,6 +504,10 @@ app.layout = dbc.Container([
     }),
     
     # Attribution footer
+    # Alternative text:
+    # "This implementation interprets and applies Cortés' methodology with adjustable "
+    # "parameters and interactive visualization tools, acknowledging certain ambiguities "
+    # "in the original source material."
     html.Hr(style={
         'marginTop': '50px', 
         'marginBottom': '30px',
@@ -513,13 +517,15 @@ app.layout = dbc.Container([
         html.H6("About This Implementation", 
                 style={'fontWeight': 'bold', 'marginBottom': '15px', 'textAlign': 'center'}),
         html.P([
-            "This dashboard implements the Bollinger Bands trading strategy as described in articles by ",
+            "This dashboard implements a trading strategy based on and inspired by the Bollinger "
+            "Bands methodology described in articles by  ",
             html.Strong("Alfons Cortés"), ". ",
             "The strategy is rooted in ",
-            html.Strong("Behavioral Finance"), " principles and focuses on identifying entry and exit points using moving averages, ",
-            "Bollinger Bands, and specific candlestick patterns. ",
-            "This implementation attempts to faithfully reproduce the methodology while adding ",
-            "interactive visualization and analysis tools."
+            html.Strong("Behavioral Finance"), " and focuses on identifying entry and exit points "
+            "using moving averages, Bollinger Bands, and specific candlestick patterns. This "
+            "implementation attempts to reproduce the core methodology while introducing adjustable "
+            "parameters and interactive visualization tools to accommodate interpretation ambiguities "
+            "in the source material."
         ], style={
             'fontSize': '14px', 
             'color': '#666', 
