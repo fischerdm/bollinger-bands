@@ -670,6 +670,6 @@ Strategy methodology based on work by financial analyst Cortés. Technical analy
 
 ---
 
-**Version**: 0.1.0  
-**Last Updated**: December 2025  
+**Version**: 0.1.1  
+**Last Updated**: 2026-01-03  
 **Maintainer**: David Fischer
