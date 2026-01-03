@@ -27,7 +27,8 @@ from bollinger_bands.indicators.signals import detect_reentry_signals
 from bollinger_bands.indicators.crossing_detection import (
     detect_price_crossing_down_daily,
     detect_price_crossing_down_period,
-    check_ma_conditions_for_period
+    check_ma_conditions_for_period,
+    check_ma_conditions_for_next_period
 )
 from bollinger_bands.strategies.zones import identify_entry_zones_with_conditions
 from bollinger_bands.visualization.formatting import (
@@ -166,7 +167,7 @@ app.layout = dbc.Container([
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
             style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
-    html.H4("Based on Alfons Cortés' Trading Strategy", 
+    html.H4("Based on and Inspired by Alfons Cortés' Trading Strategy", 
             style={
                 'textAlign': 'center', 
                 'marginBottom': '20px', 
@@ -312,7 +313,7 @@ app.layout = dbc.Container([
                 html.Label("MA Condition Lookahead (Daily):"),
                 html.I(className="bi bi-info-circle ms-1", id="info-lookahead", style={'cursor': 'pointer', 'color': '#6c757d'}),
             ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='daily-lookahead', type='number', value=10, min=0, max=30, step=1, style={'width': '100%'}),
+            dcc.Input(id='daily-lookahead', type='number', value=10, min=0, max=90, step=1, style={'width': '100%'}),
             html.Small("Days to check MA conditions after crossing", style={'color': 'gray'}),
             dbc.Tooltip(
                 "Days to look ahead after a crossing to verify MA conditions are met (daily view only). "
@@ -504,10 +505,6 @@ app.layout = dbc.Container([
     }),
     
     # Attribution footer
-    # Alternative text:
-    # "This implementation interprets and applies Cortés' methodology with adjustable "
-    # "parameters and interactive visualization tools, acknowledging certain ambiguities "
-    # "in the original source material."
     html.Hr(style={
         'marginTop': '50px', 
         'marginBottom': '30px',
@@ -518,7 +515,7 @@ app.layout = dbc.Container([
                 style={'fontWeight': 'bold', 'marginBottom': '15px', 'textAlign': 'center'}),
         html.P([
             "This dashboard implements a trading strategy based on the Bollinger "
-            "Bands methodology described in articles by  ",
+            "Bands methodology described in articles by ",
             html.Strong("Alfons Cortés"), ". ",
             "The strategy is rooted in ",
             html.Strong("Behavioral Finance"), " and focuses on identifying entry and exit points "
@@ -976,7 +973,8 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
      Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value'),
      Input('max-reentry-signals', 'value'), Input('strategy-selector', 'value')]
 )
-def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, flat_threshold_420, 
+def update_chart(selected_ticker, period, ma_period, scale,
+                flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
                 ma_condition_threshold, daily_lookahead, max_reentry_signals, strategy):
     try:
@@ -1119,40 +1117,17 @@ def update_chart(selected_ticker, period, ma_period, scale, flat_threshold_840, 
             valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
             
             for cross_date in crossing_dates:
-                if 'original_date' in display_data.columns:
-                    original_cross_date = display_data.loc[cross_date, 'original_date']
-                else:
-                    original_cross_date = cross_date
+                # NEW: Use two-part lookahead validation
+                # Part 1: Check MA conditions in next complete period (P+1)
+                # Part 2: Verify price still below MA at end of P+1
+                confirmed, reason = check_ma_conditions_for_next_period(
+                    cross_date, data, display_data, ma_long_values,
+                    combined_ma_condition, 
+                    threshold=ma_condition_threshold,
+                    period=period
+                )
                 
-                if period == 'quarterly':
-                    period_start = pd.Timestamp(original_cross_date.year, ((original_cross_date.month - 1) // 3) * 3 + 1, 1)
-                else:
-                    period_start = pd.Timestamp(original_cross_date.year, original_cross_date.month, 1)
-                
-                period_mask = (data.index >= period_start) & (data.index <= original_cross_date)
-                period_data = data[period_mask]
-                
-                is_below = period_data['Close'] < ma_long_values[period_mask]
-                is_above = period_data['Close'] >= ma_long_values[period_mask]
-                
-                crossing_day = None
-                for i in range(1, len(is_below)):
-                    if is_above.iloc[i-1] and is_below.iloc[i]:
-                        crossing_day = period_data.index[i]
-                        break
-                
-                if crossing_day is not None:
-                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                        original_cross_date, crossing_day, data, combined_ma_condition, 
-                        threshold=ma_condition_threshold
-                    )
-                else:
-                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                        original_cross_date, period_start, data, combined_ma_condition, 
-                        threshold=ma_condition_threshold
-                    )
-                
-                if conditions_met:
+                if confirmed:
                     valid_crossings.loc[cross_date] = 1
             
             price_crossing = valid_crossings
