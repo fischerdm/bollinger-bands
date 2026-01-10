@@ -1310,11 +1310,12 @@ def update_chart(selected_ticker, period, ma_period, scale,
         )
         
         # Draw gray vertical lines at CONFIRMATION dates (not crossing dates)
+        # Lines go from MA value down to chart bottom for better visual clarity
         # Add to BOTH the price chart (row 1) and MA change chart (row 3)
         # CRITICAL: Only draw signals that fall WITHIN zone boundaries
         if confirmed_signals:
             # Use confirmation dates from progressive check
-            signals_to_draw = set()
+            signals_to_draw = {}  # Map confirm_date -> zone info
             
             for zone in entry_zones:
                 zone_start = zone['start']
@@ -1325,21 +1326,100 @@ def update_chart(selected_ticker, period, ma_period, scale,
                     if confirm_date is not None:
                         # Check if confirmation date is WITHIN the zone
                         if confirm_date >= zone_start and confirm_date <= zone_end:
-                            # This confirmation is inside the zone - add it
-                            signals_to_draw.add(confirm_date)
+                            # Store zone info with confirmation date
+                            signals_to_draw[confirm_date] = zone
                             break  # Only one signal per zone
             
-            # Draw the signals
-            for confirm_date in signals_to_draw:
-                # Add to price chart
-                fig_with_bandwidth.add_vline(
-                    x=confirm_date, line_width=2, line_dash="solid", 
-                    line_color="darkgrey", opacity=0.7, row=1, col=1
+            # Draw the signals on price chart (from MA to bottom)
+            for confirm_date, zone in signals_to_draw.items():
+                # Get MA value at confirmation date
+                if confirm_date in ma_long_values.index:
+                    ma_value = ma_long_values.loc[confirm_date]
+                else:
+                    ma_value = ma_long_values.reindex([confirm_date], method='nearest').iloc[0]
+                
+                # Add line from MA value to bottom of chart
+                fig_with_bandwidth.add_shape(
+                    type="line",
+                    x0=confirm_date, x1=confirm_date,
+                    y0=y_min, y1=ma_value,
+                    line=dict(color="darkgrey", width=2, dash="solid"),
+                    opacity=0.7,
+                    row=1, col=1
                 )
-                # Add to MA change chart
+                
+                # Add full-height line to MA change chart
                 fig_with_bandwidth.add_vline(
                     x=confirm_date, line_width=2, line_dash="solid", 
                     line_color="darkgrey", opacity=0.7, row=3, col=1
+                )
+        
+        # Add hover information to zones
+        # Create invisible scatter traces with hover text for each zone
+        for zone in entry_zones:
+            zone_start = zone['start']
+            zone_end = zone['end']
+            zone_type = zone['type']
+            
+            # Get data points in the zone for positioning hover
+            zone_mask = (display_data.index >= zone_start) & (display_data.index <= zone_end)
+            zone_data = display_data[zone_mask]
+            
+            if len(zone_data) > 0:
+                # Position hover at middle of zone, near top of price range
+                mid_idx = len(zone_data) // 2
+                hover_x = zone_data.index[mid_idx]
+                hover_y = zone_data['High'].max() * 0.95
+                
+                # Format dates
+                start_str = zone_start.strftime('%Y-%m-%d')
+                
+                # Find exit signal date (confirmation date within this zone)
+                exit_signal_str = "N/A"
+                for crossing_date, confirm_date in confirmed_signals.items():
+                    if confirm_date is not None and confirm_date >= zone_start and confirm_date <= zone_end:
+                        exit_signal_str = confirm_date.strftime('%Y-%m-%d')
+                        break
+                
+                end_str = zone_end.strftime('%Y-%m-%d')
+                
+                # Helper function for ordinal numbers
+                def ordinal(n):
+                    if 10 <= n % 100 <= 20:
+                        suffix = 'th'
+                    else:
+                        suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
+                    return f"{n}{suffix}"
+                
+                # Build hover text
+                if zone_type == 'green':
+                    n_signals = max_reentry_signals
+                    signal_text = f"{ordinal(n_signals)} Re-Entry Signal"
+                    hover_text = (f"<b>Green Zone</b><br>"
+                                f"Start: {start_str}<br>"
+                                f"Exit: {exit_signal_str}<br>"
+                                f"Re-entry: {end_str} ({signal_text})")
+                    marker_color = 'rgba(0,255,0,0.3)'
+                else:
+                    hover_text = (f"<b>Orange Zone</b><br>"
+                                f"Start: {start_str}<br>"
+                                f"Exit: {exit_signal_str}<br>"
+                                f"Re-entry: {end_str} (MA Crossing)")
+                    marker_color = 'rgba(255,165,0,0.3)'
+                
+                # Add invisible marker with hover text
+                fig_with_bandwidth.add_trace(
+                    go.Scatter(
+                        x=[hover_x],
+                        y=[hover_y],
+                        mode='markers',
+                        marker=dict(size=15, color=marker_color, opacity=0),
+                        hovertext=hover_text,
+                        hoverinfo='text',
+                        showlegend=False,
+                        name=''
+                    ),
+                    row=1, col=1
                 )
         
         combined_segment_id = (combined_ma_condition != combined_ma_condition.shift(1)).cumsum()
@@ -1454,3 +1534,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
