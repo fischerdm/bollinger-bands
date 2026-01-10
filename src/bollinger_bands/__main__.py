@@ -1398,13 +1398,13 @@ def update_chart(selected_ticker, period, ma_period, scale,
                     hover_text = (f"<b>Green Zone</b><br>"
                                 f"Start: {start_str}<br>"
                                 f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} ({signal_text})")
+                                f"End: {end_str} ({signal_text})")
                     marker_color = 'rgba(0,255,0,0.3)'
                 else:
                     hover_text = (f"<b>Orange Zone</b><br>"
                                 f"Start: {start_str}<br>"
                                 f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} (MA Crossing)")
+                                f"End: {end_str} (MA Crossing)")
                     marker_color = 'rgba(255,165,0,0.3)'
                 
                 # Add invisible marker with hover text
