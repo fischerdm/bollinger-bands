@@ -296,63 +296,19 @@ app.layout = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.Div([
-                html.Label("Smoothing Window (Daily Exit):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-smoothing", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='smoothing-window', type='number', value=5, min=1, max=20, step=1, style={'width': '100%'}),
-            html.Small("Days for price smoothing", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Number of days to smooth the price before detecting crossings in daily view. "
-                "Higher values reduce noise but may delay signals. Lower values are more responsive but noisier. Typical: 3-7 days.",
-                target="info-smoothing",
-                placement="right"
-            ),
-        ], width=3),
-        dbc.Col([
-            html.Div([
-                html.Label("MA Condition Lookahead (Daily):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-lookahead", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='daily-lookahead', type='number', value=10, min=0, max=90, step=1, style={'width': '100%'}),
-            html.Small("Days to check MA conditions after crossing", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Days to look ahead after a crossing to verify MA conditions are met (daily view only). "
-                "Set to 0 to disable. Higher values allow catching signals where conditions develop shortly after crossing. Typical: 5-15 days.",
-                target="info-lookahead",
-                placement="right"
-            ),
-        ], width=3),
-        dbc.Col([
-            html.Div([
-                html.Label("MA Condition Threshold (Daily):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-ma-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='ma-condition-threshold', type='number', value=0.5, min=0, max=1, step=0.05, style={'width': '100%'}),
-            html.Small("Min % with MA conditions (0=off, 0.5=50%)", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Minimum percentage of days that must have MA conditions met within the lookahead window (daily view). "
-                "0 = disabled, 0.5 = 50% of days, 1 = 100% of days. Lower values are more permissive. Typical: 0.4-0.7.",
-                target="info-ma-threshold",
-                placement="right"
-            ),
-        ], width=3),
-    ], className="mb-3"),
-    
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.Label("Confirmation Window (Monthly/Quarterly):"),
+                html.Label("Confirmation Window (All Views):"),
                 html.I(className="bi bi-info-circle ms-1", id="info-confirm-window", style={'cursor': 'pointer', 'color': '#6c757d'}),
             ], style={'display': 'flex', 'alignItems': 'center'}),
             dcc.Input(id='confirmation-window', type='number', value=20, min=5, max=60, step=5, style={'width': '100%'}),
             html.Small("Days in sliding window", style={'color': 'gray'}),
             dbc.Tooltip(
-                "Size of the sliding window (in trading days) used to check MA conditions after a crossing in monthly/quarterly view. "
-                "A larger window requires more sustained MA conditions. Typical: 15-30 days.",
+                "Size of the sliding window (in trading days) used to check MA conditions after a crossing. "
+                "The exit signal is confirmed when MA conditions are sustained for the threshold percentage "
+                "of this window. Works for daily, monthly, and quarterly views. Typical: 15-30 days.",
                 target="info-confirm-window",
                 placement="right"
             ),
-        ], width=3),
+        ], width=4),
         dbc.Col([
             html.Div([
                 html.Label("Confirmation Threshold (%):"),
@@ -361,26 +317,13 @@ app.layout = dbc.Container([
             dcc.Input(id='confirmation-threshold', type='number', value=60, min=0, max=100, step=5, style={'width': '100%'}),
             html.Small("Min % of window with MA conditions", style={'color': 'gray'}),
             dbc.Tooltip(
-                "Percentage of days within the confirmation window that must have MA conditions met to confirm an exit signal. "
-                "Higher values = stricter confirmation, fewer false signals. Typical: 50-70%.",
+                "Percentage of days within the confirmation window that must have MA conditions met. "
+                "Higher values = stricter confirmation, fewer false signals. The exit signal must be "
+                "confirmed before the zone ends (naturally at re-entry). Typical: 50-70%.",
                 target="info-confirm-threshold",
                 placement="right"
             ),
-        ], width=3),
-        dbc.Col([
-            html.Div([
-                html.Label("Max Confirmation Wait (Days):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-max-wait", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='max-confirmation-wait', type='number', value=60, min=20, max=120, step=10, style={'width': '100%'}),
-            html.Small("Max days to wait for confirmation", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Maximum trading days to wait for confirmation after a crossing. If MA conditions aren't met within this time, "
-                "the signal is rejected as a false alarm. Typical: 40-80 days (~2-4 months).",
-                target="info-max-wait",
-                placement="right"
-            ),
-        ], width=3),
+        ], width=4),
     ], className="mb-3"),
     
     dbc.Row([
@@ -1014,17 +957,14 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
      Input('ma-period-selector', 'value'), Input('scale-selector', 'value'),
      Input('flat-threshold-840', 'value'), Input('flat-threshold-420', 'value'),
      Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
-     Input('zone-display-checklist', 'value'), Input('smoothing-window', 'value'),
-     Input('ma-condition-threshold', 'value'), Input('daily-lookahead', 'value'),
+     Input('zone-display-checklist', 'value'),
      Input('confirmation-window', 'value'), Input('confirmation-threshold', 'value'),
-     Input('max-confirmation-wait', 'value'),
      Input('max-reentry-signals', 'value'), Input('strategy-selector', 'value')]
 )
 def update_chart(selected_ticker, period, ma_period, scale,
                 flat_threshold_840, flat_threshold_420, 
-                enabled_signals, bb_distance_threshold, display_zones, smoothing_window, 
-                ma_condition_threshold, daily_lookahead, 
-                confirmation_window, confirmation_threshold, max_confirmation_wait,
+                enabled_signals, bb_distance_threshold, display_zones,
+                confirmation_window, confirmation_threshold,
                 max_reentry_signals, strategy):
     try:
         if selected_ticker is None:
@@ -1055,12 +995,8 @@ def update_chart(selected_ticker, period, ma_period, scale,
         display_zones = display_zones or ['complete_zone']
         scale = scale or 'linear'
         ma_period = ma_period or '40m20m'
-        smoothing_window = smoothing_window or 5
-        ma_condition_threshold = ma_condition_threshold if ma_condition_threshold is not None else 0.5
-        daily_lookahead = daily_lookahead if daily_lookahead is not None else 10
         confirmation_window = confirmation_window if confirmation_window is not None else 20
         confirmation_threshold = confirmation_threshold if confirmation_threshold is not None else 60
-        max_confirmation_wait = max_confirmation_wait if max_confirmation_wait is not None else 60
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
         strategy = strategy or 'orange'
         
@@ -1139,30 +1075,36 @@ def update_chart(selected_ticker, period, ma_period, scale,
         ma_at_period_dates.index = display_data.index
         
         if period == 'daily':
-            price_crossing = detect_price_crossing_down_daily(
-                display_data, ma_long_values, smoothing_window=smoothing_window
-            )
+            # Simple crossing detection for daily (no smoothing needed with progressive confirmation)
+            price_crossing = detect_price_crossing_down_daily(display_data, ma_long_values, smoothing_window=3)
             
-            if daily_lookahead > 0 and price_crossing.sum() > 0:
+            # Apply progressive confirmation (same as monthly/quarterly)
+            if price_crossing.sum() > 0:
                 crossing_dates = display_data.index[price_crossing == 1]
                 valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
+                confirmed_signals = {}  # Map crossing_date -> confirmation_date
                 
                 for cross_date in crossing_dates:
-                    lookahead_end = cross_date + pd.Timedelta(days=daily_lookahead)
-                    
-                    conditions_met, pct, days_met, total_days = check_ma_conditions_for_period(
-                        lookahead_end, cross_date, data, combined_ma_condition, 
-                        threshold=ma_condition_threshold
+                    # Use same progressive confirmation as monthly/quarterly
+                    # Natural limit: signal must be confirmed before zone ends
+                    confirmed, reason, actual_crossing, confirm_date = progressive_confirmation_check(
+                        cross_date, data, display_data, ma_long_values,
+                        combined_ma_condition,
+                        confirmation_window=confirmation_window,
+                        confirmation_threshold=confirmation_threshold,
+                        max_wait_days=None  # No artificial limit - zone end is natural limit
                     )
                     
-                    if total_days > 0 and conditions_met:
+                    if confirmed and confirm_date is not None:
                         valid_crossings.loc[cross_date] = 1
-                    elif total_days == 0:
-                        valid_crossings.loc[cross_date] = 1
+                        confirmed_signals[actual_crossing] = confirm_date
                 
                 price_crossing = valid_crossings
+            else:
+                confirmed_signals = {}
         else:
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
+            confirmed_signals = {}  # Will be populated below for monthly/quarterly
         
         if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
             crossing_dates = display_data.index[price_crossing == 1]
@@ -1170,14 +1112,14 @@ def update_chart(selected_ticker, period, ma_period, scale,
             confirmed_signals = {}  # Map crossing_date -> confirmation_date
             
             for cross_date in crossing_dates:
-                # NEW: Progressive confirmation using sliding window
-                # Returns both crossing date and confirmation date
+                # Progressive confirmation using sliding window
+                # Natural limit: signal must be confirmed before zone ends
                 confirmed, reason, actual_crossing, confirm_date = progressive_confirmation_check(
                     cross_date, data, display_data, ma_long_values,
                     combined_ma_condition,
                     confirmation_window=confirmation_window,
                     confirmation_threshold=confirmation_threshold,
-                    max_wait_days=max_confirmation_wait
+                    max_wait_days=None  # No artificial limit - zone end is natural limit
                 )
                 
                 if confirmed and confirm_date is not None:
@@ -1193,7 +1135,7 @@ def update_chart(selected_ticker, period, ma_period, scale,
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals, 
             price_crossing, combined_ma_condition,
-            ma_condition_threshold=ma_condition_threshold, period=period,
+            period=period,
             max_reentry_signals=max_reentry_signals,
             allow_reentry_at_ma=allow_reentry_at_ma
         )
@@ -1202,23 +1144,19 @@ def update_chart(selected_ticker, period, ma_period, scale,
         plotter.fig = go.Figure()
         
         # Create out_of_market mask based on when we're actually "out"
-        # For monthly/quarterly with confirmation: shade from confirmation date
-        # For daily or zones without confirmation: shade entire zone
+        # Shade from confirmation date onwards (when exit signal is confirmed)
         out_of_market = pd.Series(False, index=display_data.index)
         
-        if period in ['monthly', 'quarterly'] and confirmed_signals:
-            # Build a mapping of display dates to their "out of market" status
-            # based on confirmation dates (not crossing dates)
+        if confirmed_signals:
+            # Build a mapping based on confirmation dates (not crossing dates)
             for zone in entry_zones:
-                # Find if this zone has a confirmation
                 zone_start_daily = zone['start']
                 matching_confirmation = None
                 
-                # Check if any confirmation date falls within reasonable range of zone start
+                # Check if any confirmation date corresponds to this zone
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None:
                         # Check if this confirmation corresponds to this zone
-                        # Zone starts at crossing, confirmation happens later
                         if crossing_date >= zone_start_daily - pd.Timedelta(days=60) and \
                            crossing_date <= zone_start_daily + pd.Timedelta(days=60):
                             matching_confirmation = confirm_date
@@ -1226,18 +1164,12 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 
                 if matching_confirmation:
                     # Shade from confirmation date to zone end
-                    # Map daily confirmation date to display_data index
                     confirm_mask = display_data.index >= matching_confirmation
                     zone_end_mask = display_data.index <= zone['end']
                     out_of_market = out_of_market | (confirm_mask & zone_end_mask)
-                else:
-                    # No confirmation, don't shade (signal was rejected)
-                    pass
         else:
-            # For daily view: shade entire zones as before
-            for zone in entry_zones:
-                zone_mask = (display_data.index >= zone['start']) & (display_data.index <= zone['end'])
-                out_of_market = out_of_market | zone_mask
+            # No confirmations - no shading (signals were rejected)
+            pass
         
         in_market_data = display_data[~out_of_market]
         out_market_data = display_data[out_of_market]
@@ -1380,9 +1312,8 @@ def update_chart(selected_ticker, period, ma_period, scale,
         # Draw gray vertical lines at CONFIRMATION dates (not crossing dates)
         # Add to BOTH the price chart (row 1) and MA change chart (row 3)
         # CRITICAL: Only draw signals that fall WITHIN zone boundaries
-        if period in ['monthly', 'quarterly'] and confirmed_signals:
-            # For monthly/quarterly: use confirmation dates from progressive check
-            # But only for signals that are actually inside zones
+        if confirmed_signals:
+            # Use confirmation dates from progressive check
             signals_to_draw = set()
             
             for zone in entry_zones:
@@ -1408,32 +1339,6 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 # Add to MA change chart
                 fig_with_bandwidth.add_vline(
                     x=confirm_date, line_width=2, line_dash="solid", 
-                    line_color="darkgrey", opacity=0.7, row=3, col=1
-                )
-        else:
-            # For daily view: use crossing dates as before
-            # Only draw signals that fall within zones
-            signals_to_draw = set()
-            
-            for zone in entry_zones:
-                zone_start = zone['start']
-                zone_end = zone['end']
-                
-                # Find crossings that fall within this zone
-                for cross_date in display_data.index[price_crossing == 1]:
-                    if cross_date >= zone_start and cross_date <= zone_end:
-                        signals_to_draw.add(cross_date)
-                        break  # Only one signal per zone
-            
-            for cross_date in signals_to_draw:
-                # Add to price chart
-                fig_with_bandwidth.add_vline(
-                    x=cross_date, line_width=2, line_dash="solid", 
-                    line_color="darkgrey", opacity=0.7, row=1, col=1
-                )
-                # Add to MA change chart
-                fig_with_bandwidth.add_vline(
-                    x=cross_date, line_width=2, line_dash="solid", 
                     line_color="darkgrey", opacity=0.7, row=3, col=1
                 )
         

@@ -87,7 +87,7 @@ def detect_price_crossing_down_period(data, ma_values):
 
 def progressive_confirmation_check(crossing_date, data, display_data, ma_values, 
                                    ma_condition, confirmation_window=20, 
-                                   confirmation_threshold=60, max_wait_days=60):
+                                   confirmation_threshold=60, max_wait_days=None):
     """
     Progressive confirmation using sliding window after crossing.
     
@@ -95,7 +95,7 @@ def progressive_confirmation_check(crossing_date, data, display_data, ma_values,
     1. Check daily from crossing date
     2. Use a sliding N-day window (confirmation_window)
     3. Confirm when MA conditions are met for >= X% of the window (confirmation_threshold)
-    4. Maximum wait time: max_wait_days trading days
+    4. Natural limit: Must be confirmed before zone ends (price crosses back up or re-entry signal)
     
     Args:
         crossing_date: Date when crossing occurred (index from display_data)
@@ -105,7 +105,7 @@ def progressive_confirmation_check(crossing_date, data, display_data, ma_values,
         ma_condition: Boolean series of daily MA conditions
         confirmation_window: Size of sliding window in trading days (default: 20)
         confirmation_threshold: Percentage of window that must have MA conditions (default: 60)
-        max_wait_days: Maximum days to wait for confirmation (default: 60)
+        max_wait_days: Maximum days to wait (None = no limit, natural zone end is limit)
     
     Returns:
         tuple: (bool, str, date or None, date or None) - 
@@ -125,10 +125,16 @@ def progressive_confirmation_check(crossing_date, data, display_data, ma_values,
     if len(future_data) == 0:
         return False, "No data after crossing", actual_crossing_date, None
     
-    # Limit search to max_wait_days
-    max_search_date = actual_crossing_date + pd.Timedelta(days=max_wait_days * 1.5)  # Account for weekends
-    search_mask = (data.index >= actual_crossing_date) & (data.index <= max_search_date)
-    search_data = data[search_mask]
+    # Determine search limit
+    if max_wait_days is not None:
+        # Artificial limit (old approach - being phased out)
+        max_search_date = actual_crossing_date + pd.Timedelta(days=max_wait_days * 1.5)
+        search_mask = (data.index >= actual_crossing_date) & (data.index <= max_search_date)
+        search_data = data[search_mask]
+    else:
+        # Natural limit: search until end of available data
+        # Zone identification will handle the natural cutoff (MA crossing or re-entry)
+        search_data = future_data
     
     if len(search_data) < confirmation_window:
         return False, f"Insufficient data for confirmation window ({len(search_data)} < {confirmation_window} days)", actual_crossing_date, None
@@ -166,10 +172,10 @@ def progressive_confirmation_check(crossing_date, data, display_data, ma_values,
             print(f"    - Price at confirmation: {price_at_check:.2f} < MA {ma_at_check:.2f}")
             return True, "Confirmed", actual_crossing_date, check_date
     
-    # If we get here, confirmation failed
-    print(f"  ✗ Exit signal REJECTED for crossing at {actual_crossing_date.date()}:")
-    print(f"    - MA conditions not sustained within {max_wait_days} days")
-    return False, f"Not confirmed within {max_wait_days} days", actual_crossing_date, None
+    # If we get here, confirmation failed within search range
+    print(f"  ✗ Exit signal NOT CONFIRMED for crossing at {actual_crossing_date.date()}")
+    print(f"    - MA conditions not sustained within available data")
+    return False, "Not confirmed within available data", actual_crossing_date, None
 
 
 def check_ma_conditions_for_next_period(crossing_date, data, display_data, ma_values, 

@@ -8,7 +8,7 @@ import pandas as pd
 from bollinger_bands.indicators.crossing_detection import check_ma_conditions_for_period
 
 
-def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, ma_condition_threshold=0.5, period='daily', max_reentry_signals=1, allow_reentry_at_ma=False):
+def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, period='daily', max_reentry_signals=1, allow_reentry_at_ma=False):
     """
     Two-phase zone identification:
     
@@ -49,27 +49,10 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             
             current_date = data.index[i]
             
-            # Check MA conditions
-            if period in ['monthly', 'quarterly']:
-                if period == 'quarterly':
-                    quarter = (current_date.month - 1) // 3 + 1
-                    if quarter == 4:
-                        period_end = pd.Timestamp(current_date.year, 12, 31)
-                    else:
-                        period_end = pd.Timestamp(current_date.year, quarter * 3, 1) + pd.offsets.MonthEnd(0)
-                    period_start = pd.Timestamp(current_date.year, ((current_date.month - 1) // 3) * 3 + 1, 1)
-                else:
-                    period_start = pd.Timestamp(current_date.year, current_date.month, 1)
-                    period_end = period_start + pd.offsets.MonthEnd(0)
-                
-                conditions_met, _, _, _ = check_ma_conditions_for_period(
-                    period_end, period_start, data, combined_ma_condition, 
-                    threshold=ma_condition_threshold
-                )
-            else:
-                conditions_met = combined_ma_condition.iloc[i]
-            
-            if is_below.iloc[i] and conditions_met:
+            # Since crossings are already validated by progressive confirmation,
+            # zone becomes active as soon as price is below MA
+            # (MA conditions are inherently met if crossing was confirmed)
+            if is_below.iloc[i]:
                 zone_active_date = current_date
                 break
         
@@ -288,4 +271,3 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             print(f"{i}. {z['exit_signal'].strftime('%Y-%m-%d')} → {z['end'].strftime('%Y-%m-%d')}")
     
     return zones
-
