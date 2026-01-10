@@ -1379,23 +1379,53 @@ def update_chart(selected_ticker, period, ma_period, scale,
         
         # Draw gray vertical lines at CONFIRMATION dates (not crossing dates)
         # Add to BOTH the price chart (row 1) and MA change chart (row 3)
+        # CRITICAL: Only draw signals that fall WITHIN zone boundaries
         if period in ['monthly', 'quarterly'] and confirmed_signals:
             # For monthly/quarterly: use confirmation dates from progressive check
-            for crossing_date, confirm_date in confirmed_signals.items():
-                if confirm_date is not None:
-                    # Add to price chart
-                    fig_with_bandwidth.add_vline(
-                        x=confirm_date, line_width=2, line_dash="solid", 
-                        line_color="darkgrey", opacity=0.7, row=1, col=1
-                    )
-                    # Add to MA change chart
-                    fig_with_bandwidth.add_vline(
-                        x=confirm_date, line_width=2, line_dash="solid", 
-                        line_color="darkgrey", opacity=0.7, row=3, col=1
-                    )
+            # But only for signals that are actually inside zones
+            signals_to_draw = set()
+            
+            for zone in entry_zones:
+                zone_start = zone['start']
+                zone_end = zone['end']
+                
+                # Find if any confirmation date falls within this zone's boundaries
+                for crossing_date, confirm_date in confirmed_signals.items():
+                    if confirm_date is not None:
+                        # Check if confirmation date is WITHIN the zone
+                        if confirm_date >= zone_start and confirm_date <= zone_end:
+                            # This confirmation is inside the zone - add it
+                            signals_to_draw.add(confirm_date)
+                            break  # Only one signal per zone
+            
+            # Draw the signals
+            for confirm_date in signals_to_draw:
+                # Add to price chart
+                fig_with_bandwidth.add_vline(
+                    x=confirm_date, line_width=2, line_dash="solid", 
+                    line_color="darkgrey", opacity=0.7, row=1, col=1
+                )
+                # Add to MA change chart
+                fig_with_bandwidth.add_vline(
+                    x=confirm_date, line_width=2, line_dash="solid", 
+                    line_color="darkgrey", opacity=0.7, row=3, col=1
+                )
         else:
             # For daily view: use crossing dates as before
-            for cross_date in display_data.index[price_crossing == 1]:
+            # Only draw signals that fall within zones
+            signals_to_draw = set()
+            
+            for zone in entry_zones:
+                zone_start = zone['start']
+                zone_end = zone['end']
+                
+                # Find crossings that fall within this zone
+                for cross_date in display_data.index[price_crossing == 1]:
+                    if cross_date >= zone_start and cross_date <= zone_end:
+                        signals_to_draw.add(cross_date)
+                        break  # Only one signal per zone
+            
+            for cross_date in signals_to_draw:
                 # Add to price chart
                 fig_with_bandwidth.add_vline(
                     x=cross_date, line_width=2, line_dash="solid", 
