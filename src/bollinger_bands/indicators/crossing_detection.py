@@ -85,27 +85,106 @@ def detect_price_crossing_down_period(data, ma_values):
     return crossing_signal
 
 
-def check_ma_conditions_for_next_period(crossing_date, data, display_data, ma_values, 
-                                        ma_condition, threshold=0.5, period='monthly'):
+def progressive_confirmation_check(crossing_date, data, display_data, ma_values, 
+                                   ma_condition, confirmation_window=20, 
+                                   confirmation_threshold=60, max_wait_days=None):
     """
-    NEW Two-part lookahead for monthly/quarterly crossings.
+    Progressive confirmation using sliding window after crossing.
     
-    When crossing detected in period P:
-    1. Check MA conditions throughout ALL of period P+1 (next complete month/quarter)
-    2. Verify price is still below MA at end of period P+1
-    3. Both conditions must be met to confirm the exit signal
+    After price crosses below MA:
+    1. Check daily from crossing date
+    2. Use a sliding N-day window (confirmation_window)
+    3. Confirm when MA conditions are met for >= X% of the window (confirmation_threshold)
+    4. Natural limit: Must be confirmed before zone ends (price crosses back up or re-entry signal)
     
     Args:
         crossing_date: Date when crossing occurred (index from display_data)
         data: Daily OHLC data
-        display_data: Monthly/Quarterly aggregated data
+        display_data: Monthly/Quarterly aggregated data  
         ma_values: Daily MA values
         ma_condition: Boolean series of daily MA conditions
-        threshold: Minimum % of days in P+1 that must have conditions met
-        period: 'monthly' or 'quarterly'
+        confirmation_window: Size of sliding window in trading days (default: 20)
+        confirmation_threshold: Percentage of window that must have MA conditions (default: 60)
+        max_wait_days: Maximum days to wait (None = no limit, natural zone end is limit)
     
     Returns:
-        tuple: (bool, str) - (signal_confirmed, reason)
+        tuple: (bool, str, date or None, date or None) - 
+               (signal_confirmed, reason, actual_crossing_date, confirmation_date)
+    """
+    # Get the actual date from display_data
+    if 'original_date' in display_data.columns:
+        crossing_idx = display_data.index.get_loc(crossing_date)
+        actual_crossing_date = display_data.loc[crossing_date, 'original_date']
+    else:
+        actual_crossing_date = crossing_date
+    
+    # Find daily data starting from crossing
+    future_mask = data.index >= actual_crossing_date
+    future_data = data[future_mask]
+    
+    if len(future_data) == 0:
+        return False, "No data after crossing", actual_crossing_date, None
+    
+    # Determine search limit
+    if max_wait_days is not None:
+        # Artificial limit (old approach - being phased out)
+        max_search_date = actual_crossing_date + pd.Timedelta(days=max_wait_days * 1.5)
+        search_mask = (data.index >= actual_crossing_date) & (data.index <= max_search_date)
+        search_data = data[search_mask]
+    else:
+        # Natural limit: search until end of available data
+        # Zone identification will handle the natural cutoff (MA crossing or re-entry)
+        search_data = future_data
+    
+    if len(search_data) < confirmation_window:
+        return False, f"Insufficient data for confirmation window ({len(search_data)} < {confirmation_window} days)", actual_crossing_date, None
+    
+    # Convert threshold from percentage to decimal
+    threshold_decimal = confirmation_threshold / 100.0
+    
+    # Check each day as potential confirmation point (starting from confirmation_window days after crossing)
+    for i in range(confirmation_window - 1, len(search_data)):
+        check_date = search_data.index[i]
+        
+        # Get the sliding window ending at check_date
+        window_start_idx = i - confirmation_window + 1
+        window_dates = search_data.index[window_start_idx:i + 1]
+        
+        # Check MA conditions in this window
+        window_conditions = ma_condition[window_dates]
+        days_with_conditions = window_conditions.sum()
+        condition_pct = days_with_conditions / confirmation_window
+        
+        # Check if price is still below MA at check_date
+        if check_date in ma_values.index and check_date in data.index:
+            price_at_check = data.loc[check_date, 'Close']
+            ma_at_check = ma_values.loc[check_date]
+            price_below_ma = price_at_check < ma_at_check
+        else:
+            continue
+        
+        # Both conditions must be met
+        if condition_pct >= threshold_decimal and price_below_ma:
+            days_to_confirm = (check_date - actual_crossing_date).days
+            print(f"  ✓ Exit signal CONFIRMED for crossing at {actual_crossing_date.date()}:")
+            print(f"    - Confirmed on: {check_date.date()} ({days_to_confirm} days after crossing)")
+            print(f"    - MA conditions in window: {condition_pct:.1%} ({days_with_conditions}/{confirmation_window} days)")
+            print(f"    - Price at confirmation: {price_at_check:.2f} < MA {ma_at_check:.2f}")
+            return True, "Confirmed", actual_crossing_date, check_date
+    
+    # If we get here, confirmation failed within search range
+    print(f"  ✗ Exit signal NOT CONFIRMED for crossing at {actual_crossing_date.date()}")
+    print(f"    - MA conditions not sustained within available data")
+    return False, "Not confirmed within available data", actual_crossing_date, None
+
+
+def check_ma_conditions_for_next_period(crossing_date, data, display_data, ma_values, 
+                                        ma_condition, threshold=0.5, period='monthly'):
+    """
+    DEPRECATED: Use progressive_confirmation_check instead.
+    
+    Two-part lookahead for monthly/quarterly crossings.
+    Kept for backward compatibility.
     """
     # Find the next period after crossing
     crossing_idx = display_data.index.get_loc(crossing_date)

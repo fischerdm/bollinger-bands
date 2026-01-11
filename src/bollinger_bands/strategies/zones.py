@@ -6,16 +6,15 @@ This module handles identification of trading zones (entry to re-entry).
 
 import pandas as pd
 from bollinger_bands.indicators.crossing_detection import check_ma_conditions_for_period
-from bollinger_bands.strategies.strategies import apply_green_strategy, apply_orange_strategy
 
 
-def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, ma_condition_threshold=0.5, period='daily', max_reentry_signals=1, allow_reentry_at_ma=False):
+def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_signals, price_crossing, combined_ma_condition, period='daily', max_reentry_signals=1, allow_reentry_at_ma=False):
     """
     Two-phase zone identification:
     
     PHASE 1: Detect all patterns (no strategy applied)
     - For each exit signal, find:
-      * Green zone: Exit → First Nth candlestick signal
+      * Green zone: Exit → First Nth candlestick signal (not used by previous zones)
       * Orange zone: Exit → First MA crossing up
     
     PHASE 2: Apply strategy (filter/combine patterns)
@@ -38,6 +37,7 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
     
     all_green_patterns = []  # All potential green zones
     all_orange_patterns = []  # All potential orange zones
+    used_signals = set()  # Track signals already assigned to zones (NEW)
     
     # For each exit signal, find patterns
     for exit_signal in crossing_dates:
@@ -49,27 +49,10 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             
             current_date = data.index[i]
             
-            # Check MA conditions
-            if period in ['monthly', 'quarterly']:
-                if period == 'quarterly':
-                    quarter = (current_date.month - 1) // 3 + 1
-                    if quarter == 4:
-                        period_end = pd.Timestamp(current_date.year, 12, 31)
-                    else:
-                        period_end = pd.Timestamp(current_date.year, quarter * 3, 1) + pd.offsets.MonthEnd(0)
-                    period_start = pd.Timestamp(current_date.year, ((current_date.month - 1) // 3) * 3 + 1, 1)
-                else:
-                    period_start = pd.Timestamp(current_date.year, current_date.month, 1)
-                    period_end = period_start + pd.offsets.MonthEnd(0)
-                
-                conditions_met, _, _, _ = check_ma_conditions_for_period(
-                    period_end, period_start, data, combined_ma_condition, 
-                    threshold=ma_condition_threshold
-                )
-            else:
-                conditions_met = combined_ma_condition.iloc[i]
-            
-            if is_below.iloc[i] and conditions_met:
+            # Since crossings are already validated by progressive confirmation,
+            # zone becomes active as soon as price is below MA
+            # (MA conditions are inherently met if crossing was confirmed)
+            if is_below.iloc[i]:
                 zone_active_date = current_date
                 break
         
@@ -80,8 +63,8 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
         print(f"  Exit {exit_signal.date()}: Zone active from {zone_active_date.date()}")
         
         # Find GREEN pattern: First Nth candlestick signal after THIS exit signal
-        # Important: Start looking from the exit signal, not from zone_active_date
-        # This ensures each exit finds its own unique set of signals
+        # IMPORTANT: Counter starts at 0 for each zone
+        # IMPORTANT: Skip signals already used by previous zones
         collected_signals = []
         green_end = None
         for i in range(len(data)):
@@ -90,12 +73,18 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             
             current_date = data.index[i]
             
-            # Only collect signals that happen after zone became active
+            # Only collect signals that:
+            # 1. Happen after zone became active
+            # 2. Are actual reentry signals
+            # 3. Haven't been used by previous zones (NEW)
             if current_date >= zone_active_date and reentry_signals.iloc[i]:
-                collected_signals.append(current_date)
-                if len(collected_signals) >= max_reentry_signals:
-                    green_end = current_date
-                    break
+                if current_date not in used_signals:  # NEW: Skip if already used
+                    collected_signals.append(current_date)
+                    if len(collected_signals) >= max_reentry_signals:
+                        green_end = current_date
+                        # Mark these signals as consumed (NEW)
+                        used_signals.update(collected_signals)
+                        break
         
         if green_end:
             all_green_patterns.append({
@@ -106,6 +95,11 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
                 'type': 'green'
             })
             print(f"  Green pattern: {exit_signal.date()} → {green_end.date()} (signals: {[s.date() for s in collected_signals]})")
+        else:
+            if collected_signals:
+                print(f"  Green pattern incomplete: {exit_signal.date()} found {len(collected_signals)}/{max_reentry_signals} signals (not enough)")
+            else:
+                print(f"  Green pattern: No valid signals found (all used by previous zones)")
         
         # Find ORANGE pattern: First MA crossing up
         # For monthly/quarterly: use period-end data (display_data)
@@ -162,6 +156,7 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             print(f"  Orange pattern: {exit_signal.date()} → {orange_end.date()}")
     
     print(f"\nPatterns detected: {len(all_green_patterns)} green, {len(all_orange_patterns)} orange")
+    print(f"Total signals used: {len(used_signals)}")
     
     if all_green_patterns:
         print("\nGREEN PATTERNS:")
@@ -173,15 +168,87 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
         for i, p in enumerate(all_orange_patterns, 1):
             print(f"  {i}. Exit {p['exit_signal'].date()} → End {p['end'].date()}")
     
-    # PHASE 2: APPLY STRATEGY
-    print(f"\n=== PHASE 2: STRATEGY APPLICATION ===")
+    # Apply strategy: Choose which zones to use
+    print(f"\n=== STRATEGY APPLICATION (Strategy: {'Orange' if allow_reentry_at_ma else 'Green'}) ===")
+    
+    zones = []
     
     if allow_reentry_at_ma:
-        # Orange strategy: Accept MA crossings + candlestick signals
-        zones = apply_orange_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=max_reentry_signals)
+        # Orange strategy: Use whichever completes FIRST (green or orange)
+        # For each exit signal, check if we have both patterns
+        all_exits = set()
+        for p in all_green_patterns:
+            all_exits.add(p['exit_signal'])
+        for p in all_orange_patterns:
+            all_exits.add(p['exit_signal'])
+        
+        for exit_signal in sorted(all_exits):
+            # Find green pattern for this exit (if exists)
+            green_pattern = None
+            for p in all_green_patterns:
+                if p['exit_signal'] == exit_signal:
+                    green_pattern = p
+                    break
+            
+            # Find orange pattern for this exit (if exists)
+            orange_pattern = None
+            for p in all_orange_patterns:
+                if p['exit_signal'] == exit_signal:
+                    orange_pattern = p
+                    break
+            
+            # Decide which to use: whichever ends FIRST
+            if green_pattern and orange_pattern:
+                if green_pattern['end'] <= orange_pattern['end']:
+                    # Green completes first (got N signals before MA crossing)
+                    zones.append({
+                        'exit_signal': green_pattern['exit_signal'],
+                        'start': green_pattern['start'],
+                        'end': green_pattern['end'],
+                        'type': 'green',
+                        'reentry_signals': green_pattern['signals']
+                    })
+                    print(f"  Exit {exit_signal.date()}: GREEN wins (ends {green_pattern['end'].date()} vs orange {orange_pattern['end'].date()})")
+                else:
+                    # Orange completes first (MA crossing before N signals)
+                    zones.append({
+                        'exit_signal': orange_pattern['exit_signal'],
+                        'start': orange_pattern['start'],
+                        'end': orange_pattern['end'],
+                        'type': 'orange',
+                        'reentry_signals': []
+                    })
+                    print(f"  Exit {exit_signal.date()}: ORANGE wins (ends {orange_pattern['end'].date()} vs green {green_pattern['end'].date()})")
+            elif green_pattern:
+                # Only green exists
+                zones.append({
+                    'exit_signal': green_pattern['exit_signal'],
+                    'start': green_pattern['start'],
+                    'end': green_pattern['end'],
+                    'type': 'green',
+                    'reentry_signals': green_pattern['signals']
+                })
+                print(f"  Exit {exit_signal.date()}: GREEN only")
+            elif orange_pattern:
+                # Only orange exists
+                zones.append({
+                    'exit_signal': orange_pattern['exit_signal'],
+                    'start': orange_pattern['start'],
+                    'end': orange_pattern['end'],
+                    'type': 'orange',
+                    'reentry_signals': []
+                })
+                print(f"  Exit {exit_signal.date()}: ORANGE only")
     else:
-        # Green strategy: Only candlestick signals
-        zones = apply_green_strategy(all_green_patterns, all_orange_patterns, data, max_reentry_signals=max_reentry_signals)
+        # Green strategy: Only use green zones (must have N candlestick signals)
+        for pattern in all_green_patterns:
+            zones.append({
+                'exit_signal': pattern['exit_signal'],
+                'start': pattern['start'],
+                'end': pattern['end'],
+                'type': 'green',
+                'reentry_signals': pattern['signals']
+            })
     
     # Sort by start date
     zones.sort(key=lambda z: z['start'])
@@ -193,15 +260,14 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
     print(f"\nFinal zones: {len(green_zones)} green, {len(orange_zones)} orange")
     
     if green_zones:
-        print(f"\n=== GREEN ZONES ===")
+        print(f"\nGREEN ZONES:")
         for i, z in enumerate(green_zones[:10], 1):
             sigs = ', '.join([s.strftime('%Y-%m-%d') for s in z['reentry_signals']])
-            print(f"{i}. {z['exit_signal'].strftime('%Y-%m-%d')} → {z['end'].strftime('%Y-%m-%d')} | {sigs}")
+            print(f"{i}. {z['exit_signal'].strftime('%Y-%m-%d')} → {z['end'].strftime('%Y-%m-%d')} | Signals: {sigs}")
     
     if orange_zones:
-        print(f"\n=== ORANGE ZONES ===")
+        print(f"\nORANGE ZONES:")
         for i, z in enumerate(orange_zones[:10], 1):
             print(f"{i}. {z['exit_signal'].strftime('%Y-%m-%d')} → {z['end'].strftime('%Y-%m-%d')}")
     
     return zones
-    
