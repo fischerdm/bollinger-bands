@@ -241,7 +241,7 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
                 else:
                     levy_rs_relative = np.nan
             else:
-                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
+                levy_rs_relative = 1 if ticker == reference_ticker else np.nan
         else:
             # For original Levy RS: never use benchmark (always Price/MA)
             metrics = calculate_all_metrics(data, benchmark_data=None)
@@ -251,7 +251,7 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
                 metrics_rel = calculate_all_metrics(data, benchmark_data=benchmark_data)
                 levy_rs_relative = metrics_rel['levy_rs_relative']
             else:
-                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
+                levy_rs_relative = 1 if ticker == reference_ticker else np.nan
         
         results.append({
             'ticker': ticker,
