@@ -164,6 +164,14 @@ data_details_modal = dbc.Modal([
 # ============================================================================
 
 app.layout = dbc.Container([
+    # Hidden store components for debouncing inputs
+    dcc.Store(id='debounced-confirmation-window', data=20),
+    dcc.Store(id='debounced-confirmation-threshold', data=60),
+    dcc.Store(id='debounced-max-reentry-signals', data=1),
+    dcc.Store(id='debounced-flat-threshold-840', data=0.025),
+    dcc.Store(id='debounced-flat-threshold-420', data=0),
+    dcc.Store(id='debounced-bb-distance-threshold', data=10),
+    
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
             style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
@@ -951,15 +959,110 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     ])
 
 
+# ============================================================================
+# DEBOUNCING CALLBACKS - Delay parameter updates to prevent excessive recalculation
+# ============================================================================
+
+# Debounce confirmation window input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer1);
+        return new Promise((resolve) => {
+            window.debounceTimer1 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-confirmation-window', 'data'),
+    Input('confirmation-window', 'value'),
+    prevent_initial_call=False
+)
+
+# Debounce confirmation threshold input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer2);
+        return new Promise((resolve) => {
+            window.debounceTimer2 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-confirmation-threshold', 'data'),
+    Input('confirmation-threshold', 'value'),
+    prevent_initial_call=False
+)
+
+# Debounce max reentry signals input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer3);
+        return new Promise((resolve) => {
+            window.debounceTimer3 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-max-reentry-signals', 'data'),
+    Input('max-reentry-signals', 'value'),
+    prevent_initial_call=False
+)
+
+# Debounce flat threshold 840 input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer4);
+        return new Promise((resolve) => {
+            window.debounceTimer4 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-flat-threshold-840', 'data'),
+    Input('flat-threshold-840', 'value'),
+    prevent_initial_call=False
+)
+
+# Debounce flat threshold 420 input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer5);
+        return new Promise((resolve) => {
+            window.debounceTimer5 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-flat-threshold-420', 'data'),
+    Input('flat-threshold-420', 'value'),
+    prevent_initial_call=False
+)
+
+# Debounce BB distance threshold input (500ms delay)
+app.clientside_callback(
+    """
+    function(value) {
+        clearTimeout(window.debounceTimer6);
+        return new Promise((resolve) => {
+            window.debounceTimer6 = setTimeout(() => resolve(value), 500);
+        });
+    }
+    """,
+    Output('debounced-bb-distance-threshold', 'data'),
+    Input('bb-distance-threshold', 'value'),
+    prevent_initial_call=False
+)
+
+
 @app.callback(
     [Output('stock-chart', 'figure'), Output('ticker-name', 'children')],
     [Input('ticker-dropdown', 'value'), Input('period-selector', 'value'),
      Input('ma-period-selector', 'value'), Input('scale-selector', 'value'),
-     Input('flat-threshold-840', 'value'), Input('flat-threshold-420', 'value'),
-     Input('signal-checklist', 'value'), Input('bb-distance-threshold', 'value'),
+     Input('debounced-flat-threshold-840', 'data'), Input('debounced-flat-threshold-420', 'data'),
+     Input('signal-checklist', 'value'), Input('debounced-bb-distance-threshold', 'data'),
      Input('zone-display-checklist', 'value'),
-     Input('confirmation-window', 'value'), Input('confirmation-threshold', 'value'),
-     Input('max-reentry-signals', 'value'), Input('strategy-selector', 'value')]
+     Input('debounced-confirmation-window', 'data'), Input('debounced-confirmation-threshold', 'data'),
+     Input('debounced-max-reentry-signals', 'data'), Input('strategy-selector', 'value')]
 )
 def update_chart(selected_ticker, period, ma_period, scale,
                 flat_threshold_840, flat_threshold_420, 
@@ -1398,13 +1501,13 @@ def update_chart(selected_ticker, period, ma_period, scale,
                     hover_text = (f"<b>Green Zone</b><br>"
                                 f"Start: {start_str}<br>"
                                 f"Exit: {exit_signal_str}<br>"
-                                f"End: {end_str} ({signal_text})")
+                                f"Re-entry: {end_str} ({signal_text})")
                     marker_color = 'rgba(0,255,0,0.3)'
                 else:
                     hover_text = (f"<b>Orange Zone</b><br>"
                                 f"Start: {start_str}<br>"
                                 f"Exit: {exit_signal_str}<br>"
-                                f"End: {end_str} (MA Crossing)")
+                                f"Re-entry: {end_str} (MA Crossing)")
                     marker_color = 'rgba(255,165,0,0.3)'
                 
                 # Add invisible marker with hover text
@@ -1534,5 +1637,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
