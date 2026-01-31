@@ -1,5 +1,3 @@
-# src/bollinger_bands/__main__.py
-
 """
 Bollinger Bands Dashboard
 Run with: python -m bollinger_bands
@@ -837,13 +835,13 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == 'avg_positive':
         metrics_df = metrics_df[metrics_df['Avg Performance (%)'] > 0]
     elif filter_value == 'levy_positive':
-        metrics_df = metrics_df[metrics_df['Levy RS (%)'] > 0]
+        metrics_df = metrics_df[metrics_df['6M Perf Rel. Bench'] > 0]
     elif filter_value == '6m_negative':
         metrics_df = metrics_df[metrics_df['6M Performance (%)'] < 0]
     elif filter_value == '12m_negative':
         metrics_df = metrics_df[metrics_df['12M Performance (%)'] < 0]
     
-    # metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
+    # Sort by 6M Performance Relative to Benchmark (default)
     metrics_df = metrics_df.sort_values('6M Perf Rel. Bench', ascending=False)
     
     def truncate_name(name, max_length=25):
@@ -857,9 +855,12 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     metrics_df['Ticker Name Short'] = metrics_df['Ticker Name'].apply(lambda x: truncate_name(x, max_length=25))
     metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']
     
+    # Rename column to add (%) suffix for display
+    metrics_df['6M Perf Rel. Bench (%)'] = metrics_df['6M Perf Rel. Bench']
+    
     metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 
-                              'Levy RS (%)', '6M Perf Rel. Bench']]
+                              'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
     # Styling: benchmark gets blue background (applied first)
     style_data_conditional = [
@@ -882,7 +883,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     ])
     
     for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 
-                'Levy RS (%)']:
+                'Levy RS (%)', '6M Perf Rel. Bench (%)']:
         style_data_conditional.extend([
             {
                 'if': {
@@ -899,23 +900,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
                 'color': 'red'
             }
         ])
-    # Color logic for relative strength ratio (threshold = 1)
-    style_data_conditional.extend([
-        {
-            'if': {
-                'filter_query': '{6M Perf Rel. Bench} > 1',
-                'column_id': '6M Perf Rel. Bench'
-            },
-            'color': 'green'
-        },
-        {
-            'if': {
-                'filter_query': '{6M Perf Rel. Bench} < 1',
-                'column_id': '6M Perf Rel. Bench'
-            },
-            'color': 'red'
-        }
-    ])
     
     table = dash_table.DataTable(
         data=metrics_df.to_dict('records'),
@@ -926,7 +910,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             {'name': '12M Perf (%)', 'id': '12M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Avg Perf (%)', 'id': 'Avg Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Levy RS (%)', 'id': 'Levy RS (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
-            {'name': '6M Perf Rel. Bench', 'id': '6M Perf Rel. Bench', 'type': 'numeric', 'format': {'specifier': '.2f'}},
+            {'name': '6M Perf Rel. Bench (%)', 'id': '6M Perf Rel. Bench (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
         ],
         tooltip_data=[
             {
@@ -968,7 +952,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ], style={'fontSize': '12px', 'color': '#666', 'fontStyle': 'italic', 'marginBottom': '0.5rem'}),
         html.P([
             html.Strong("Levy RS (%)"), ": (Current Price / 6M MA) - 1. ",
-            html.Strong("6M Perf Rel. Bench"), f": (Asset return / {reference_ticker} return). ",
+            html.Strong("6M Perf Rel. Bench (%)"), f": (Asset return / {reference_ticker} return) - 1. ",
             f"Benchmark ({reference_ticker}) shows 0%. ",
             "Positive = outperformance. ",
             html.Em("All conversions go through USD hub.")
@@ -1187,6 +1171,19 @@ def update_chart(selected_ticker, period, ma_period, scale,
         decreasing_short = ma_short_change < flat_threshold_420
         combined_ma_condition = flat_long & decreasing_short
         
+        # Filter reentry signals by BB distance
+        # This is the first filter in the cascade before zone identification
+        reentry_signals_filtered = reentry_signals.copy()
+        for idx in data.index[reentry_signals]:
+            if idx in bb_long_values['lower'].index:
+                lower_bb = bb_long_values['lower'].loc[idx]
+                price = data.loc[idx, 'Close']
+                distance_from_bb = ((price - lower_bb) / lower_bb) * 100
+                
+                # Remove signal if it's too far from lower BB
+                if distance_from_bb > bb_distance_threshold:
+                    reentry_signals_filtered.loc[idx] = False
+        
         if period in ['monthly', 'quarterly'] and 'original_date' in display_data.columns:
             period_end_dates = display_data['original_date']
         else:
@@ -1253,8 +1250,9 @@ def update_chart(selected_ticker, period, ma_period, scale,
         
         allow_reentry_at_ma = (strategy == 'orange')
         
+        # Pass BB-distance-filtered signals to zone identification
         entry_zones = identify_entry_zones_with_conditions(
-            data, display_data, ma_long_values, reentry_signals, 
+            data, display_data, ma_long_values, reentry_signals_filtered, 
             price_crossing, combined_ma_condition,
             period=period,
             max_reentry_signals=max_reentry_signals,
@@ -1398,8 +1396,10 @@ def update_chart(selected_ticker, period, ma_period, scale,
                         row=1, col=1
                     )
         
-        reentry_dates = data.index[reentry_signals]
-        reentry_prices = data.loc[reentry_signals, 'Low'] * 0.98
+        # Draw green triangles for all BB-distance-filtered re-entry signals
+        # Zones will apply the Max Re-Entry Signals filter on top of this
+        reentry_dates = data.index[reentry_signals_filtered]
+        reentry_prices = data.loc[reentry_signals_filtered, 'Low'] * 0.98
         if len(reentry_dates) > 0:
             fig_with_bandwidth.add_trace(
                 go.Scatter(x=reentry_dates, y=reentry_prices, mode='markers',

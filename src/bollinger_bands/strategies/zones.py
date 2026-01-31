@@ -76,14 +76,13 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
             # Only collect signals that:
             # 1. Happen after zone became active
             # 2. Are actual reentry signals
-            # 3. Haven't been used by previous zones (NEW)
+            # 3. Haven't been used by previous zones
             if current_date >= zone_active_date and reentry_signals.iloc[i]:
-                if current_date not in used_signals:  # NEW: Skip if already used
+                if current_date not in used_signals:  # Skip if already used
                     collected_signals.append(current_date)
                     if len(collected_signals) >= max_reentry_signals:
                         green_end = current_date
-                        # Mark these signals as consumed (NEW)
-                        used_signals.update(collected_signals)
+                        # DON'T mark as used yet - wait for strategy application
                         break
         
         if green_end:
@@ -208,9 +207,12 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
                         'type': 'green',
                         'reentry_signals': green_pattern['signals']
                     })
+                    # Mark signals as used ONLY when green zone is created
+                    used_signals.update(green_pattern['signals'])
                     print(f"  Exit {exit_signal.date()}: GREEN wins (ends {green_pattern['end'].date()} vs orange {orange_pattern['end'].date()})")
                 else:
                     # Orange completes first (MA crossing before N signals)
+                    # DON'T mark green signals as used - they're available for next zone
                     zones.append({
                         'exit_signal': orange_pattern['exit_signal'],
                         'start': orange_pattern['start'],
@@ -228,6 +230,8 @@ def identify_entry_zones_with_conditions(data, display_data, ma_values, reentry_
                     'type': 'green',
                     'reentry_signals': green_pattern['signals']
                 })
+                # Mark signals as used ONLY when green zone is created
+                used_signals.update(green_pattern['signals'])
                 print(f"  Exit {exit_signal.date()}: GREEN only")
             elif orange_pattern:
                 # Only orange exists
