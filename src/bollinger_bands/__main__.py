@@ -837,13 +837,14 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == 'avg_positive':
         metrics_df = metrics_df[metrics_df['Avg Performance (%)'] > 0]
     elif filter_value == 'levy_positive':
-        metrics_df = metrics_df[metrics_df['6M Perf Rel. Bench (%)'] > 0]
+        metrics_df = metrics_df[metrics_df['Levy RS (%)'] > 0]
     elif filter_value == '6m_negative':
         metrics_df = metrics_df[metrics_df['6M Performance (%)'] < 0]
     elif filter_value == '12m_negative':
         metrics_df = metrics_df[metrics_df['12M Performance (%)'] < 0]
     
-    metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
+    # metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
+    metrics_df = metrics_df.sort_values('6M Perf Rel. Bench', ascending=False)
     
     def truncate_name(name, max_length=25):
         if pd.isna(name):
@@ -858,7 +859,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     
     metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 
-                              'Levy RS (%)', '6M Perf Rel. Bench (%)']]
+                              'Levy RS (%)', '6M Perf Rel. Bench']]
     
     # Styling: benchmark gets blue background (applied first)
     style_data_conditional = [
@@ -881,7 +882,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     ])
     
     for col in ['6M Performance (%)', '12M Performance (%)', 'Avg Performance (%)', 
-                'Levy RS (%)', '6M Perf Rel. Bench (%)']:
+                'Levy RS (%)']:
         style_data_conditional.extend([
             {
                 'if': {
@@ -898,6 +899,23 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
                 'color': 'red'
             }
         ])
+    # Color logic for relative strength ratio (threshold = 1)
+    style_data_conditional.extend([
+        {
+            'if': {
+                'filter_query': '{6M Perf Rel. Bench} > 1',
+                'column_id': '6M Perf Rel. Bench'
+            },
+            'color': 'green'
+        },
+        {
+            'if': {
+                'filter_query': '{6M Perf Rel. Bench} < 1',
+                'column_id': '6M Perf Rel. Bench'
+            },
+            'color': 'red'
+        }
+    ])
     
     table = dash_table.DataTable(
         data=metrics_df.to_dict('records'),
@@ -908,7 +926,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             {'name': '12M Perf (%)', 'id': '12M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Avg Perf (%)', 'id': 'Avg Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
             {'name': 'Levy RS (%)', 'id': 'Levy RS (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
-            {'name': '6M Perf Rel. Bench (%)', 'id': '6M Perf Rel. Bench (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
+            {'name': '6M Perf Rel. Bench', 'id': '6M Perf Rel. Bench', 'type': 'numeric', 'format': {'specifier': '.2f'}},
         ],
         tooltip_data=[
             {
@@ -950,7 +968,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ], style={'fontSize': '12px', 'color': '#666', 'fontStyle': 'italic', 'marginBottom': '0.5rem'}),
         html.P([
             html.Strong("Levy RS (%)"), ": (Current Price / 6M MA) - 1. ",
-            html.Strong("6M Perf Rel. Bench (%)"), f": (Asset return / {reference_ticker} return) - 1. ",
+            html.Strong("6M Perf Rel. Bench"), f": (Asset return / {reference_ticker} return). ",
             f"Benchmark ({reference_ticker}) shows 0%. ",
             "Positive = outperformance. ",
             html.Em("All conversions go through USD hub.")

@@ -9,6 +9,8 @@ This module handles all relative strength related calculations including:
 import pandas as pd
 import numpy as np
 
+from bollinger_bands import data
+
 
 def calculate_performance(data, months):
     """
@@ -77,7 +79,7 @@ def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     Calculate Levy's Relative Strength indicator.
     
     If benchmark_data is provided:
-        Levy's RS = (Asset Performance / Benchmark Performance) - 1 (ratio-based)
+        Levy's RS = Asset Performance / Benchmark Performance (ratio-based)
     If benchmark_data is None:
         Levy's RS = Asset Performance (absolute return)
     
@@ -127,8 +129,11 @@ def calculate_levy_relative_strength(data, benchmark_data=None, months=6):
     if bench_multiplier == 0:
         return np.nan
     
-    relative_ratio = (asset_multiplier / bench_multiplier - 1) * 100
+    # relative_ratio = (asset_multiplier / bench_multiplier - 1) * 100
+    relative_ratio = asset_multiplier / bench_multiplier
     
+    # print(f"DEBUG: {data.attrs.get('ticker', 'unknown')}: asset={asset_performance:.2f}%, bench={bench_performance:.2f}%, ratio={relative_ratio:.4f}")
+
     return relative_ratio
 
 
@@ -236,7 +241,7 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
                 else:
                     levy_rs_relative = np.nan
             else:
-                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
+                levy_rs_relative = 1 if ticker == reference_ticker else np.nan
         else:
             # For original Levy RS: never use benchmark (always Price/MA)
             metrics = calculate_all_metrics(data, benchmark_data=None)
@@ -246,7 +251,7 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
                 metrics_rel = calculate_all_metrics(data, benchmark_data=benchmark_data)
                 levy_rs_relative = metrics_rel['levy_rs_relative']
             else:
-                levy_rs_relative = 0.0 if ticker == reference_ticker else np.nan
+                levy_rs_relative = 1 if ticker == reference_ticker else np.nan
         
         results.append({
             'ticker': ticker,
@@ -254,7 +259,7 @@ def get_all_tickers_metrics(ticker_data, reference_ticker='URTH', target_date=No
             '12M Performance (%)': metrics['12M_perf'],
             'Avg Performance (%)': metrics['avg_perf'],
             'Levy RS (%)': metrics['levy_rs_original'],  # Original Price/MA formula
-            '6M Perf Rel. Bench (%)': levy_rs_relative    # Relative to benchmark
+            '6M Perf Rel. Bench': levy_rs_relative    # Relative to benchmark
         })
     
     df = pd.DataFrame(results)
