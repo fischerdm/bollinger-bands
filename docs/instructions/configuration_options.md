@@ -194,233 +194,180 @@ A decreasing short MA indicates short-term weakness developing. Combined with a 
 
 ---
 
-### MA Condition Threshold (All Views)
+## Exit Signal Confirmation (All Views)
 
-**Parameter**: MA Condition Threshold  
+### Confirmation Window
+
+**Parameter**: Confirmation Window (All Views)  
 **Type**: Numeric input  
-**Range**: 0 - 1  
-**Default**: 0.5 (50%)  
-**Step**: 0.05
+**Range**: 5 - 60 days  
+**Default**: 20 days  
+**Step**: 5
 
 **Description**:  
-Minimum percentage of days that must have MA conditions met within the validation period. This parameter filters exit signals to ensure the unfavorable MA conditions persist for a meaningful portion of the period.
+Size of the sliding window (in trading days) used to check MA conditions after a crossing. The exit signal is confirmed when MA conditions are sustained for the threshold percentage of this window.
 
-**Values**:
-- **0**: Disabled (no validation required)
-- **0.5**: 50% of days must meet conditions (default)
-- **1**: 100% of days must meet conditions (very strict)
-
-**Application**:
-
-For **Monthly/Quarterly** views:
-- Validation period: From crossing date to end of period
-- Example: If crossing occurs on day 10 of a 30-day month, checks days 10-30
-
-For **Daily** view:
-- Validation period: From crossing date to (crossing date + lookahead days)
-- Configured via "MA Condition Lookahead" parameter
-
-**Technical Details**:  
-When a price crossing below MA is detected, the system checks whether the MA conditions (flat long MA and decreasing short MA) are met for the specified percentage of days in the validation window.
-
-**Example** (Monthly view, threshold = 0.5):
-```
-Period: January (30 days)
-Crossing detected: January 15
-Validation window: January 15-31 (17 days)
-MA conditions met: 10 days out of 17
-Result: 10/17 = 58.8% > 50% → Signal is VALID
-```
-
-**Effect**:
-- **Lower values** (e.g., 0.3): More permissive, catches more signals
-- **Higher values** (e.g., 0.7): More strict, filters out weak signals
-
-**Recommendation**:  
-- **Default approach**: 0.5 (balanced)
-- **More signals**: 0.3-0.4
-- **Higher confidence**: 0.6-0.7
-- **Maximum strictness**: 0.8-1.0
-
----
-
-## Exit Signal Detection (Daily View)
-
-### Smoothing Window
-
-**Parameter**: Smoothing Window (Daily Exit)  
-**Type**: Numeric input  
-**Range**: 1 - 20 days  
-**Default**: 5 days  
-**Step**: 1
-
-**Description**:  
-Number of days to smooth the closing price before detecting crossings in daily view. This reduces noise and prevents false signals from daily volatility.
-
-**Technical Implementation**:  
-```python
-smoothed_price = price.rolling(window=smoothing_window).mean()
-crossing = (smoothed_price crosses below MA)
-```
-
-**Effect**:
-- **Lower values** (1-3): More responsive but noisier signals
-- **Medium values** (4-7): Balanced approach (default)
-- **Higher values** (8-20): Smoother but slower signals
-
-**Trade-off**:
-- **Higher values**: Reduce noise, may delay signals by several days
-- **Lower values**: React quickly, may generate false signals
-
-**Recommendation**:  
-3-7 days for most applications. Adjust based on ticker volatility.
-
----
-
-### MA Condition Lookahead
-
-**Parameter**: MA Condition Lookahead (Daily)  
-**Type**: Numeric input  
-**Range**: 0 - 30 days  
-**Default**: 10 days  
-**Step**: 1
-
-**Description**:  
-Days to look ahead after a crossing to verify MA conditions are met. This parameter only applies to daily view.
-
-**Purpose**:  
-Sometimes MA conditions develop shortly after a crossing rather than exactly at the crossing date. This parameter allows the system to capture these signals.
+**Applies to**: Daily, Monthly, and Quarterly views (unified behavior)
 
 **Technical Logic**:
+After a price crossing is detected:
+1. Start checking daily from the crossing date
+2. Use a sliding N-day window
+3. For each day, check if MA conditions are met for ≥X% of the last N days
+4. Check if price is still below MA
+5. When both conditions are met, the exit signal is confirmed
+
+**Effect**:
+- **Lower values** (10-15 days): Faster confirmation, may catch early signals
+- **Medium values** (20-25 days): Balanced approach (default)
+- **Higher values** (30-40 days): Requires sustained conditions, fewer false signals
+
+**Example** (Window = 20 days):
 ```
-Crossing detected: Day X
-Validation window: Day X to Day (X + lookahead)
-Check: Are MA conditions met for threshold% of days in this window?
+Day 0: Crossing detected (price drops below MA)
+Days 1-19: Checking... accumulating data
+Day 20: First full window check
+  - Look back at days 1-20
+  - Count days with MA conditions met
+  - If ≥ threshold% → Can confirm (if price still < MA)
+Day 21: Rolling window
+  - Look back at days 2-21
+  - Recalculate percentage
+  - Continue checking...
 ```
 
-**Special Case**:  
-Set to **0** to disable lookahead and require MA conditions at the exact crossing date.
-
-**Example** (lookahead = 10, threshold = 0.5):
-```
-Crossing: Day 100
-Validation: Days 100-110 (11 days)
-MA conditions met: 7 days
-Result: 7/11 = 63.6% > 50% → Signal VALID
-```
-
-**Recommendation**:
-- **Strict signals**: 0-5 days
-- **Balanced**: 10 days (default)
-- **Permissive**: 15-20 days
+**Recommendation**: 15-30 days for most applications
 
 ---
 
-## Period-Based Signal Detection (Monthly/Quarterly)
+### Confirmation Threshold
 
-### Crossing Detection Logic
+**Parameter**: Confirmation Threshold (%)  
+**Type**: Numeric input  
+**Range**: 0 - 100%  
+**Default**: 60%  
+**Step**: 5
 
-**Important**: For monthly and quarterly views, the system uses **period-end prices** to detect crossings.
+**Description**:  
+Percentage of days within the confirmation window that must have MA conditions met to confirm an exit signal. Higher values require more sustained unfavorable conditions.
 
-**Technical Implementation**:
+**Applies to**: Daily, Monthly, and Quarterly views (unified behavior)
 
-1. **Price Aggregation**:
-   - Monthly: Last trading day's close of each month
-   - Quarterly: Last trading day's close of each quarter
-
-2. **MA Alignment**:
-   - MA value taken at the period end date
-   - Ensures fair comparison between price and MA
-
-3. **Crossing Detection**:
-   ```
-   Crossing occurs when:
-   - Period Open Price >= MA value (at period end)
-   AND
-   - Period Close Price < MA value (at period end)
-   ```
-
-**Rationale**:  
-Using period-end prices for both price and MA ensures consistency. The candlestick represents the full period, and we check if price crossed below MA during that period.
-
-**Example** (Monthly):
+**Technical Definition**:
 ```
-Month: January 2024
-Period: Jan 1 - Jan 31
-Candlestick:
-  - Open: Jan 1 close = $100
-  - Close: Jan 31 close = $95
-MA at Jan 31: $97
-
-Evaluation:
-  - Open ($100) >= MA ($97) ✓
-  - Close ($95) < MA ($97) ✓
-  → Crossing detected
-```
-
-### Exit Signal Validation (Monthly/Quarterly)
-
-**Critical Logic**: When validating exit signals in monthly/quarterly views, the validation period runs from **the crossing date to the end of the period**.
-
-**Implementation Details**:
-
-1. **Identify Crossing**:
-   - Detected at period level (e.g., January 2024)
-   - Period end date: January 31, 2024
-
-2. **Find Actual Crossing Day**:
-   - Search daily data within the period
-   - Find specific day when price crossed below MA
-   - Example: Crossing occurred on January 15, 2024
-
-3. **Validation Window**:
-   - Start: Crossing day (January 15)
-   - End: Period end date (January 31)
-   - Duration: 17 days in this example
-
-4. **Check MA Conditions**:
-   - Count how many days have both:
-     * Flat long MA (below flat threshold)
-     * Decreasing short MA (below decreasing threshold)
-   - Calculate percentage: days_met / total_days
-
-5. **Apply Threshold**:
-   ```
-   If percentage >= MA_condition_threshold:
-       Signal is VALID
-   Else:
-       Signal is REJECTED
-   ```
-
-**Example Validation** (Monthly, threshold = 0.5):
-```
-Period: January 2024 (monthly candlestick)
-Crossing detected in this period
-
-Step 1: Find exact crossing day in daily data
-  → January 15, 2024
-
-Step 2: Define validation window
-  → January 15 to January 31 (17 days)
-
-Step 3: Check MA conditions for each day
-  Jan 15: Flat=Yes, Decreasing=Yes ✓
-  Jan 16: Flat=Yes, Decreasing=Yes ✓
-  Jan 17: Flat=No,  Decreasing=Yes ✗
-  ...
-  Jan 31: Flat=Yes, Decreasing=Yes ✓
+For each potential confirmation day:
+  window_days = last N days (confirmation window)
   
-  Result: 12 days met conditions out of 17 days
-
-Step 4: Calculate percentage
-  → 12 / 17 = 70.6%
-
-Step 5: Compare to threshold (50%)
-  → 70.6% > 50% → Signal VALID
+  For each day in window:
+    Check if BOTH conditions are true:
+      - Long MA is flat (change < flat threshold)
+      - Short MA is decreasing (change < decreasing threshold)
+  
+  condition_percentage = days_with_conditions / window_size
+  
+  If condition_percentage >= confirmation_threshold
+  AND price < MA on confirmation day
+  THEN signal is CONFIRMED
 ```
 
-**Key Insight**:  
-This validation ensures that the unfavorable MA conditions (flat long MA + decreasing short MA) persist through the majority of the period, not just occurring briefly at the crossing point.
+**Effect**:
+- **Lower values** (40-50%): More permissive, catches more signals
+- **Medium values** (60-70%): Balanced approach (default)
+- **Higher values** (80-100%): Very strict, only sustained conditions
+
+**Example** (Threshold = 60%, Window = 20):
+```
+Crossing on Day 0
+
+Day 20 check:
+  - Days 1-20 examined
+  - Days with MA conditions: 13 out of 20
+  - Percentage: 13/20 = 65%
+  - 65% ≥ 60% ✓
+  - Price < MA ✓
+  → Signal CONFIRMED
+```
+
+**Natural Limit**:
+The exit signal must be confirmed **before the zone ends**:
+- **Orange zones**: End when price crosses back above MA
+- **Green zones**: End at Nth re-entry signal
+
+If conditions aren't sustained before the zone naturally ends, the signal is rejected as a false alarm.
+
+**Recommendation**:
+- **Standard approach**: 60% (default)
+- **More signals**: 50-55%
+- **Higher confidence**: 70-80%
+
+---
+
+### Progressive Confirmation Process
+
+**How it works** (same for all views):
+
+**Phase 1: Crossing Detected**
+- Price drops below MA
+- Zone starts (background shading begins)
+- Candlesticks remain normal colored (not officially "out" yet)
+
+**Phase 2: Daily Checking**
+System checks each trading day after crossing:
+- Calculate: What % of last N days (confirmation window) had MA conditions?
+- Check: Is price still below MA today?
+- Continue until either:
+  * Conditions are met → Confirm signal
+  * Zone ends (re-entry occurs) → Reject signal
+
+**Phase 3: Signal Confirmed**
+When both conditions are met:
+- Gray exit signal line appears on chart
+- Candlesticks become shaded (officially "out of market")
+- Investor executes or completes selling
+
+**Phase 4: Zone Ends**
+When re-entry occurs:
+- **Orange strategy**: Price crosses back above MA
+- **Green strategy**: Nth candlestick pattern appears
+- Background shading ends
+- Candlesticks return to normal colors
+
+**Complete Example** (Window=20, Threshold=60%):
+```
+Sep 15: Price crosses below MA
+  → Zone starts (light background shading)
+  → Candlesticks still normal colored
+  → Start daily checking
+
+Sep 16-Oct 3: Checking...
+  → Not enough days yet (window = 20)
+  → Keep accumulating
+
+Oct 4: First possible confirmation (Day 20)
+  → Check last 20 days (Sep 15-Oct 4)
+  → MA conditions met: 13 days
+  → 13/20 = 65% ≥ 60% ✓
+  → Price < MA ✓
+  → CONFIRMED! Gray line appears on Oct 4
+  → Candlesticks from Oct 4 onward become shaded
+
+Oct 4-Dec 3: Out of market period
+  → Shaded candlesticks
+  → Background zone shading continues
+  → Waiting for re-entry signal
+
+Dec 3: Re-entry signal (candlestick pattern)
+  → Zone ends
+  → Shading stops
+  → Back in market
+```
+
+**Key Benefits**:
+1. **Unified approach**: Same logic for daily, monthly, quarterly
+2. **Natural limits**: No arbitrary time cutoffs
+3. **Adaptive**: Works regardless of when crossing occurs in a period
+4. **Realistic**: Allows conditions to develop after crossing
+5. **Self-regulating**: Invalid signals automatically rejected when zone ends
 
 ---
 
@@ -511,6 +458,8 @@ Start with all enabled, then refine based on backtesting results for your specif
 **Description**:  
 Number of re-entry signals to wait for before marking the zone as complete. This affects how quickly zones end and can filter out premature signals.
 
+**Important**: Each zone gets its own fresh count - signals from one zone cannot be reused by subsequent zones.
+
 **Values**:
 - **1**: Zone ends at first signal (default)
 - **2-3**: Wait for confirmation
@@ -522,11 +471,13 @@ Number of re-entry signals to wait for before marking the zone as complete. This
 - Most responsive
 - Captures earliest entry
 - May include false signals
+- Suitable for aggressive traders
 
 **Value = 3** (Third signal):
 - More confirmation
 - Filters weak signals
 - May miss early moves
+- Suitable for conservative traders
 
 **Example** (max = 3):
 ```
@@ -537,6 +488,22 @@ Day 105: Hammer signal → Count = 1 (zone continues)
 Day 112: Engulfing signal → Count = 2 (zone continues)
 Day 118: Morning star signal → Count = 3 (zone ends, re-enter)
 ```
+
+**Signal Uniqueness**:
+Signals used by one zone cannot be reused by later zones. This ensures:
+- Each zone has its own distinct signals
+- No overlapping or shared entry points
+- Clear separation between trading periods
+
+**Hover Information**:
+When you hover over a zone, you'll see:
+```
+Green Zone
+Start: 2008-09-15
+Exit: 2008-10-09
+End: 2008-12-03 (4th Re-Entry Signal)
+```
+The ordinal (1st, 2nd, 3rd, 4th, etc.) indicates which signal number ended the zone.
 
 **Recommendation**:
 - **Quick entries**: 1 (default)
@@ -562,16 +529,43 @@ Colored background zones on the chart showing different market conditions.
    - Shows all periods when price is below the long MA
    - Indicates weaker trend conditions
    - Not necessarily an exit signal (requires MA conditions too)
+   - Useful for understanding overall price position
 
 2. **Exit-to-Reentry Candlestick (Green)**:
    - From exit signal to candlestick re-entry signal
    - Represents "out of market" periods using candlestick strategy
    - Conservative approach: wait for strong reversal patterns
+   - Zone ends when Nth candlestick signal appears
 
 3. **Exit-to-Reentry MA Crossing (Orange)**:
    - From exit signal to price crossing back above MA
    - Represents potential early re-entry points
    - More aggressive: re-enter as soon as price recovers above MA
+   - Zone ends when price crosses MA upward
+
+**Zone Visualization Details**:
+
+**Background Shading**:
+- Begins at crossing date (when price drops below MA)
+- Continues until re-entry point
+- Shows the "danger period" or "out of market" time
+
+**Candlestick Shading**:
+- Begins at exit signal confirmation date (not crossing date)
+- Shows when you're officially "out of market"
+- More transparent colors indicate out-of-market candlesticks
+
+**Exit Signal Line** (gray vertical line):
+- Appears at confirmation date
+- Extends from MA value down to chart bottom
+- Marks the moment when conditions are confirmed
+
+**Hover Information**:
+Hover over any zone to see:
+- **Start date**: When price crossed below MA
+- **Exit date**: When exit signal was confirmed
+- **End date**: When to re-enter
+- **Re-entry type**: "Nth Re-Entry Signal" or "MA Crossing"
 
 **Usage**:
 - **Red zones**: Understanding price position relative to MA
@@ -594,7 +588,7 @@ Colored background zones on the chart showing different market conditions.
 **Default**: MA crossing + Candlestick (Orange and green)
 
 **Description**:  
-Determines which re-entry method to use.
+Determines which re-entry method to use and which comes first.
 
 **Options**:
 
@@ -604,6 +598,7 @@ Determines which re-entry method to use.
    - **Waiting period**: Until strong reversal pattern appears
    - **Risk**: Lower (more confirmation)
    - **Opportunity**: May miss early moves
+   - **All zones appear green**
 
 2. **MA crossing + Candlestick (Orange and green)**:
    - **Re-entry trigger**: Whichever comes first:
@@ -613,6 +608,7 @@ Determines which re-entry method to use.
    - **Waiting period**: Shorter
    - **Risk**: Higher (less confirmation)
    - **Opportunity**: Captures early recoveries
+   - **Zones are orange or green depending on which signal comes first**
 
 **Zone Behavior**:
 
@@ -620,12 +616,30 @@ Determines which re-entry method to use.
 - All zones are green
 - End only on candlestick signals
 - May have longer out-of-market periods
+- More confirmation required
 
 **Orange strategy** (MA + Candlesticks):
-- Orange zones: Exit to MA crossing
-- Green zones: MA crossing to candlestick signal
-- Provides two entry opportunities
+- Some zones are orange (MA crossing came first)
+- Some zones are green (candlestick signal came first)
+- Provides two entry opportunities per exit
 - Generally shorter out-of-market periods
+- More responsive to market recovery
+
+**Decision Logic** (Orange strategy):
+For each exit signal:
+1. Detect green zone end (Nth candlestick signal)
+2. Detect orange zone end (MA crossing)
+3. Use whichever occurs FIRST
+
+**Example**:
+```
+Exit signal: Sep 15
+
+Green zone would end: Dec 3 (3rd candlestick signal)
+Orange zone would end: Nov 10 (MA crossing)
+
+Result: Orange zone used (Nov 10 < Dec 3)
+```
 
 **Recommendation**:
 - **Conservative traders**: Green (candlesticks only)
@@ -635,6 +649,44 @@ Determines which re-entry method to use.
 ---
 
 ## Relative Strength Analysis
+
+### Reference Ticker (Benchmark)
+
+**Parameter**: RS Reference dropdown  
+**Type**: Selection  
+**Default**: URTH
+
+**Description**:  
+Select benchmark ticker for Levy RS calculation. Levy RS shows how much each ticker outperforms (positive) or underperforms (negative) the benchmark.
+
+**Common Benchmarks**:
+- **URTH**: Global markets (most comprehensive)
+- **SPY**: S&P 500 (US large cap)
+- **VTI**: Total US market
+
+**Note**: The benchmark itself will show 0% Levy RS by definition.
+
+---
+
+### Calculation Currency
+
+**Parameter**: Calculation Currency dropdown  
+**Type**: Selection  
+**Default**: USD
+
+**Description**:  
+Currency for calculating all performance metrics. All tickers will be converted to this currency before calculating returns.
+
+**Available Currencies**:
+- **USD**: US Dollar
+- **CHF**: Swiss Franc
+- **EUR**: Euro
+- **GBP**: British Pound
+
+**Purpose**:  
+Ensures fair comparison between tickers denominated in different currencies. For example, comparing SMI (CHF) with S&P 500 (USD) requires currency normalization.
+
+---
 
 ### Filter by Metric
 
@@ -663,9 +715,67 @@ Quickly identify tickers with strongest or weakest momentum, aligning with Cort�
 2. **12M Performance (%)**: Simple return over last 12 months
 3. **Avg Performance (%)**: Average of 6M and 12M returns
 4. **Levy RS (%)**: Relative strength calculation based on Levy methodology
+5. **6M Perf Rel. Bench (%)**: 6-month performance relative to benchmark
+
+**Table Sorting**:  
+By default, the table is sorted by **6M Performance Relative to Benchmark** (descending), showing the strongest performers first. This aligns with Cortés' principle of focusing on sectors with superior momentum.
+
+Click any column header to re-sort by that metric.
 
 **Usage in Strategy**:  
 According to Cortés, focus on tickers with strongest positive momentum (highest average performance). Avoid sectors underperforming the broad market.
+
+---
+
+## Performance Optimization
+
+### Input Debouncing
+
+**Feature**: Automatic 500ms delay on numeric inputs  
+**Applies to**: All numeric parameter inputs
+
+**Description**:  
+When you adjust numeric parameters (using increment/decrement buttons or typing), the system waits 500ms after your last change before recalculating the chart.
+
+**Debounced Parameters**:
+- Confirmation Window
+- Confirmation Threshold
+- Max Re-Entry Signals per Zone
+- Flat Long MA Threshold
+- Decreasing Short MA Threshold
+- BB Distance for Re-Entry
+
+**Behavior**:
+
+**Without debouncing** (old behavior):
+```
+Click +1 → Recalculate chart (500ms)
+Click +1 → Recalculate chart (500ms)
+Click +1 → Recalculate chart (500ms)
+Total: 1500ms, 3 calculations
+```
+
+**With debouncing** (current):
+```
+Click +1 → Wait...
+Click +1 → Wait...
+Click +1 → Wait...
+[After 500ms of no changes]
+→ Recalculate chart (500ms)
+Total: 1000ms, 1 calculation
+```
+
+**Benefits**:
+- **Faster UI**: Fewer unnecessary calculations
+- **More responsive**: Can adjust multiple parameters quickly
+- **Better user experience**: No lag when making changes
+
+**Not Debounced** (instant response):
+- Ticker selection
+- Period selection (Daily/Monthly/Quarterly)
+- MA Period (40M/20M vs 20M/10M)
+- Checkboxes (signals, zones, strategy)
+- Scale selector (Linear/Log)
 
 ---
 
@@ -677,11 +787,12 @@ Exit signals require **ALL** of the following:
 1. Price crosses below long MA
 2. Long MA is flat (rate of change < flat threshold)
 3. Short MA is decreasing (rate of change < decreasing threshold)
-4. MA conditions persist for specified percentage of validation period
+4. MA conditions persist for specified percentage of confirmation window
+5. Price remains below MA at confirmation point
 
 Adjusting any parameter changes signal frequency:
-- **Stricter** (fewer signals): Lower thresholds, higher MA condition percentage
-- **Looser** (more signals): Higher thresholds, lower MA condition percentage
+- **Stricter** (fewer signals): Lower MA thresholds, higher confirmation percentage
+- **Looser** (more signals): Higher MA thresholds, lower confirmation percentage
 
 ### Re-Entry Signal Generation
 
@@ -696,13 +807,16 @@ Re-entry signals require **ALL** of the following:
 **Daily View**:
 - Most responsive
 - Precise entry/exit timing
-- Requires lookahead and smoothing parameters
+- Uses same progressive confirmation as monthly/quarterly
+- No special parameters needed
 
 **Monthly/Quarterly View**:
 - Reduced noise
 - Broader perspective
-- Uses period-end validation logic
+- Uses same progressive confirmation as daily
 - Better for long-term strategy
+
+**All views now use the same unified confirmation logic**, making behavior consistent and predictable across time periods.
 
 ---
 
@@ -715,7 +829,8 @@ For users new to the system, start with:
 - **MA Period**: 40M/20M
 - **Flat Long MA**: 0.025
 - **Decreasing Short MA**: 0.0
-- **MA Condition Threshold**: 0.5
+- **Confirmation Window**: 20 days
+- **Confirmation Threshold**: 60%
 - **BB Distance**: 10%
 - **Max Signals**: 1
 - **Strategy**: Orange (MA + Candlesticks)
@@ -733,7 +848,7 @@ For users new to the system, start with:
 **Related Parameters**:
 - Flat threshold ↔ Decreasing threshold: Both affect exit sensitivity
 - MA period ↔ Flat/decreasing thresholds: Longer periods need different thresholds
-- Period (daily/monthly) ↔ Lookahead: Daily needs lookahead, monthly uses period logic
+- Confirmation window ↔ Confirmation threshold: Work together to filter signals
 - BB distance ↔ Max signals: Tighter distance needs lower max signal count
 
 **Consistency Principle**:  
@@ -748,7 +863,8 @@ Maintain consistent relative strictness across all parameters. Don't combine ver
 **Symptoms**: Frequent entries and exits, high transaction costs
 
 **Solutions**:
-- Increase MA condition threshold (0.5 → 0.7)
+- Increase confirmation threshold (60% → 70-80%)
+- Increase confirmation window (20 → 30 days)
 - Lower flat/decreasing MA thresholds (stricter)
 - Increase BB distance requirement (stricter)
 - Use monthly instead of daily view
@@ -758,7 +874,8 @@ Maintain consistent relative strictness across all parameters. Don't combine ver
 **Symptoms**: Long periods without any signals, missing opportunities
 
 **Solutions**:
-- Decrease MA condition threshold (0.5 → 0.3)
+- Decrease confirmation threshold (60% → 50%)
+- Decrease confirmation window (20 → 15 days)
 - Raise flat/decreasing MA thresholds (more permissive)
 - Decrease BB distance requirement (more permissive)
 - Enable all re-entry patterns
@@ -770,8 +887,8 @@ Maintain consistent relative strictness across all parameters. Don't combine ver
 
 **Solutions**:
 - Use 20M/10M MA period (faster)
-- Decrease smoothing window (daily view)
-- Reduce MA condition threshold
+- Decrease confirmation window (20 → 10-15 days)
+- Reduce confirmation threshold (60% → 50%)
 - Enable orange strategy for earlier re-entry
 
 ### False Signals
@@ -780,10 +897,25 @@ Maintain consistent relative strictness across all parameters. Don't combine ver
 
 **Solutions**:
 - Use 40M/20M MA period (more stable)
-- Increase smoothing window (daily view)
-- Increase MA condition threshold
+- Increase confirmation window (20 → 30 days)
+- Increase confirmation threshold (60% → 70-80%)
 - Use monthly/quarterly view
 - Increase max signals per zone (more confirmation)
+
+### Exit Signals Not Appearing
+
+**Symptoms**: Zone starts (background shading) but no gray exit line appears
+
+**Possible Causes**:
+1. **MA conditions not sustained**: Conditions may have been met briefly but not for the required percentage of the confirmation window
+2. **Price recovered too quickly**: Zone ended (re-entry occurred) before confirmation
+3. **Thresholds too strict**: Combination of high confirmation threshold + strict MA thresholds
+
+**Solutions**:
+- Lower confirmation threshold (e.g., 60% → 50%)
+- Decrease confirmation window (e.g., 20 → 15 days)
+- Raise MA condition thresholds (more permissive)
+- Check console output for rejection reasons
 
 ---
 
@@ -794,5 +926,11 @@ Understanding these parameters allows you to customize the trading strategy to y
 - Trading frequency preference
 - Market conditions
 - Specific tickers being traded
+
+The unified confirmation approach (same 2 parameters for all views) makes the system:
+- **Simpler**: Fewer parameters to manage
+- **More intuitive**: Consistent behavior across time periods
+- **Self-regulating**: Natural limits prevent artificial cutoffs
+- **Adaptive**: Works regardless of crossing timing
 
 Start with defaults, observe behavior, and adjust systematically based on your analysis and goals.
