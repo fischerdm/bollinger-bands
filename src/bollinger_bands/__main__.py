@@ -843,7 +843,8 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == '12m_negative':
         metrics_df = metrics_df[metrics_df['12M Performance (%)'] < 0]
     
-    metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
+    # metrics_df = metrics_df.sort_values('Avg Performance (%)', ascending=False)
+    metrics_df = metrics_df.sort_values('6M Perf Rel. Bench', ascending=False)
     
     def truncate_name(name, max_length=25):
         if pd.isna(name):
