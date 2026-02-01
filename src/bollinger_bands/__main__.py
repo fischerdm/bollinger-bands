@@ -902,6 +902,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ])
     
     table = dash_table.DataTable(
+        id='rs-table',  # Add ID for callback reference
         data=metrics_df.to_dict('records'),
         columns=[
             {'name': 'Ticker', 'id': 'ticker'},
@@ -922,17 +923,26 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         style_cell={
             'textAlign': 'left',
             'padding': '10px',
-            'fontFamily': 'Arial, sans-serif'
+            'fontFamily': 'Arial, sans-serif',
+            'cursor': 'pointer'  # Show pointer cursor on hover
         },
         style_header={
             'backgroundColor': 'rgb(230, 230, 230)',
             'fontWeight': 'bold',
             'textAlign': 'center'
         },
-        style_data_conditional=style_data_conditional,
+        style_data_conditional=style_data_conditional + [
+            # Highlight row on hover
+            {
+                'if': {'state': 'active'},
+                'backgroundColor': 'rgba(0, 116, 217, 0.1)',
+                'border': '1px solid rgb(0, 116, 217)'
+            }
+        ],
         style_table={'overflowX': 'auto'},
         sort_action='native',
         filter_action='native',
+        row_selectable=False,  # Disable row selection checkbox
     )
     
     date_info = ""
@@ -959,6 +969,40 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
+
+
+# ============================================================================
+# TABLE ROW CLICK CALLBACK - Switch ticker when clicking table row
+# ============================================================================
+
+@app.callback(
+    Output('ticker-dropdown', 'value'),
+    Input('rs-table', 'active_cell'),
+    State('rs-table', 'data'),
+    prevent_initial_call=True
+)
+def switch_ticker_from_table(active_cell, table_data):
+    """
+    Switch to the ticker of the clicked row in the relative strength table.
+    
+    Args:
+        active_cell: Dict with 'row' and 'column' of clicked cell
+        table_data: List of dicts containing table data
+    
+    Returns:
+        str: Ticker symbol to switch to
+    """
+    if active_cell is None or table_data is None:
+        return dash.no_update
+    
+    row_index = active_cell['row']
+    
+    # Get ticker from the clicked row
+    if 0 <= row_index < len(table_data):
+        ticker = table_data[row_index]['ticker']
+        return ticker
+    
+    return dash.no_update
 
 
 # ============================================================================
@@ -1174,6 +1218,7 @@ def update_chart(selected_ticker, period, ma_period, scale,
         # Filter reentry signals by BB distance
         # This is the first filter in the cascade before zone identification
         reentry_signals_filtered = reentry_signals.copy()
+        signals_removed = 0
         for idx in data.index[reentry_signals]:
             if idx in bb_long_values['lower'].index:
                 lower_bb = bb_long_values['lower'].loc[idx]
@@ -1183,6 +1228,12 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 # Remove signal if it's too far from lower BB
                 if distance_from_bb > bb_distance_threshold:
                     reentry_signals_filtered.loc[idx] = False
+                    signals_removed += 1
+        
+        print(f"\n=== BB DISTANCE FILTERING ===")
+        print(f"Original reentry signals: {reentry_signals.sum()}")
+        print(f"After BB distance filter: {reentry_signals_filtered.sum()}")
+        print(f"Removed {signals_removed} signals (too far from lower BB)")
         
         if period in ['monthly', 'quarterly'] and 'original_date' in display_data.columns:
             period_end_dates = display_data['original_date']
