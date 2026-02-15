@@ -1625,6 +1625,16 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 tickangle=0, row=1, col=1
             )
         
+        # For long histories, set initial visible range to last 15 years to avoid label overlap
+        if period in ['monthly', 'quarterly']:
+            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
+            if time_span_years > 15:
+                initial_start = display_data.index[-1] - pd.DateOffset(years=15)
+                # Set range on all three subplots (they share x-axis)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=1, col=1)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=2, col=1)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=3, col=1)
+        
         fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(
