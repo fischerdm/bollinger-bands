@@ -1609,33 +1609,17 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 bgcolor="rgba(255,255,255,0.8)", 
                 bordercolor="lightgray", 
                 borderwidth=1
-            ),
-            xaxis=dict(
-                rangeselector=dict(
-                    buttons=[
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"), 
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all", label="All")
-                    ], 
-                    y=1.18,
-                    yanchor="top"
-                )
             )
         )
         
         if period == 'quarterly':
-            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
-            show_all_quarters = time_span_years <= 15
-            tick_vals, tick_text = format_quarter_labels_two_levels(display_data.index, show_all=show_all_quarters)
+            tick_vals, tick_text = format_quarter_labels_two_levels(display_data.index, show_all=True)
             fig_with_bandwidth.update_xaxes(
                 tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
             )
         elif period == 'monthly':
-            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
-            show_all_months = time_span_years <= 15
-            tick_vals, tick_text = format_monthly_labels_as_quarters(display_data.index, show_all=show_all_months)
+            tick_vals, tick_text = format_monthly_labels_as_quarters(display_data.index, show_all=True)
             fig_with_bandwidth.update_xaxes(
                 tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
@@ -1643,7 +1627,32 @@ def update_chart(selected_ticker, period, ma_period, scale,
         
         fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False, showticklabels=True)
-        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=True, showticklabels=True)
+        fig_with_bandwidth.update_xaxes(
+            title_text="Date", 
+            row=3, col=1, 
+            rangeslider_visible=True, 
+            showticklabels=True,
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=3, label="3m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(count=2, label="2y", step="year", stepmode="backward"),
+                    dict(count=3, label="3y", step="year", stepmode="backward"),
+                    dict(count=5, label="5y", step="year", stepmode="backward"),
+                    dict(count=10, label="10y", step="year", stepmode="backward"),
+                    dict(count=15, label="15y", step="year", stepmode="backward"),
+                    dict(step="all", label="All")
+                ]),
+                bgcolor="lightgray",
+                activecolor="gray",
+                x=0.0,
+                y=1.15,
+                xanchor="left",
+                yanchor="top"
+            )
+        )
         
         y_type = 'log' if scale == 'log' else 'linear'
         fig_with_bandwidth.update_yaxes(title_text="Price", type=y_type, autorange=True, row=1, col=1)
