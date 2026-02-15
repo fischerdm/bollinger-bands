@@ -1656,7 +1656,7 @@ def update_chart(selected_ticker, period, ma_period, scale,
                     dict(step="all", label="All")
                 ]),
                 bgcolor="lightgray",
-                activecolor="gray",
+                activecolor="darkgray",
                 x=0.0,
                 y=1.15,
                 xanchor="left",
