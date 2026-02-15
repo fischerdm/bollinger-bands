@@ -1625,17 +1625,19 @@ def update_chart(selected_ticker, period, ma_period, scale,
         )
         
         if period == 'quarterly':
-            tick_vals = display_data.index.tolist()
-            tick_text = format_quarter_labels_two_levels(display_data.index)
+            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
+            show_all_quarters = time_span_years <= 15
+            tick_vals, tick_text = format_quarter_labels_two_levels(display_data.index, show_all=show_all_quarters)
             fig_with_bandwidth.update_xaxes(
-                tickmode='array', tickvals=tick_vals, ticktext=tick_text, 
+                tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
             )
         elif period == 'monthly':
-            tick_vals = display_data.index.tolist()
-            tick_text = format_monthly_labels_as_quarters(display_data.index)
+            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
+            show_all_months = time_span_years <= 15
+            tick_vals, tick_text = format_monthly_labels_as_quarters(display_data.index, show_all=show_all_months)
             fig_with_bandwidth.update_xaxes(
-                tickmode='array', tickvals=tick_vals, ticktext=tick_text, 
+                tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
             )
         
@@ -1656,7 +1658,8 @@ def update_chart(selected_ticker, period, ma_period, scale,
         traceback.print_exc()
         plotter = Plotter()
         fig = plotter.plot_candlestick(ticker_data.get(selected_ticker, list(ticker_data.values())[0]), name=selected_ticker)
-        return fig, f"Error: {selected_ticker}"    
+        return fig, f"Error: {selected_ticker}"
+
 
 def main():
     """Entry point for the application"""
