@@ -254,119 +254,134 @@ app.layout = dbc.Container([
         ], width=3),
     ], className="mb-3"),
     
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.Label("Flat Long MA Threshold (%):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-flat-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='flat-threshold-840', type='number', value=0.025, step=0.005, style={'width': '100%'}),
-            html.Small("Values below this threshold", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "The long MA (40M/20M) is considered 'flat' when its rate of change is below this threshold. "
-                "Lower values = stricter requirement for MA to be flat. Typical range: 0.01-0.05.",
-                target="info-flat-threshold",
-                placement="right"
-            ),
-        ], width=3),
-        dbc.Col([
-            html.Div([
-                html.Label("Decreasing Short MA Threshold (%):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-decreasing-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='flat-threshold-420', type='number', value=0, step=0.005, style={'width': '100%'}),
-            html.Small("Negative values for decreasing", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "The short MA (20M/10M) is considered 'decreasing' when its rate of change is below this threshold. "
-                "Use 0 to require any decrease, negative values for stronger decreases. Typical range: -0.05 to 0.05.",
-                target="info-decreasing-threshold",
-                placement="right"
-            ),
-        ], width=3),
-        dbc.Col([
-            html.Div([
-                html.Label("BB Distance for Re-Entry (%):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-bb-distance", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='bb-distance-threshold', type='number', value=10, min=0, step=5, style={'width': '100%'}),
-            html.Small("Max distance from lower BB", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Maximum distance from the lower Bollinger Band for a re-entry signal to be valid. "
-                "Signals must occur within this % of the lower BB. Lower values = more restrictive. Typical: 5-15%.",
-                target="info-bb-distance",
-                placement="right"
-            ),
-        ], width=3),
-    ], className="mb-3"),
-    
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.Label("Confirmation Window (All Views):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-confirm-window", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='confirmation-window', type='number', value=20, min=5, max=60, step=5, style={'width': '100%'}),
-            html.Small("Days in sliding window", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Size of the sliding window (in trading days) used to check MA conditions after a crossing. "
-                "The exit signal is confirmed when MA conditions are sustained for the threshold percentage "
-                "of this window. Works for daily, monthly, and quarterly views. Typical: 15-30 days.",
-                target="info-confirm-window",
-                placement="right"
-            ),
-        ], width=4),
-        dbc.Col([
-            html.Div([
-                html.Label("Confirmation Threshold (%):"),
-                html.I(className="bi bi-info-circle ms-1", id="info-confirm-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='confirmation-threshold', type='number', value=60, min=0, max=100, step=5, style={'width': '100%'}),
-            html.Small("Min % of window with MA conditions", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Percentage of days within the confirmation window that must have MA conditions met. "
-                "Higher values = stricter confirmation, fewer false signals. The exit signal must be "
-                "confirmed before the zone ends (naturally at re-entry). Typical: 50-70%.",
-                target="info-confirm-threshold",
-                placement="right"
-            ),
-        ], width=4),
-    ], className="mb-3"),
-    
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                html.Label("Re-Entry Signals:"),
-                html.I(className="bi bi-info-circle ms-1", id="info-reentry", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Checklist(id='signal-checklist', options=[
-                {'label': ' Bullish Engulfing', 'value': 'engulfing'},
-                {'label': ' Hammer/Inverted Hammer', 'value': 'hammer'},
-                {'label': ' Morning Star', 'value': 'morning_star'}
-            ], value=['engulfing', 'hammer', 'morning_star'], inline=True, style={'marginTop': '5px'}),
-            dbc.Tooltip(
-                "Candlestick patterns that signal potential re-entry points when price is below MA and near lower Bollinger Band. "
-                "Bullish Engulfing: green candle engulfs previous red. Hammer: long lower wick. Morning Star: 3-candle reversal pattern.",
-                target="info-reentry",
-                placement="right"
-            ),
-        ], width=6),
-        dbc.Col([
-            html.Div([
-                html.Label("Max Re-Entry Signals per Zone:"),
-                html.I(className="bi bi-info-circle ms-1", id="info-max-signals", style={'cursor': 'pointer', 'color': '#6c757d'}),
-            ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Input(id='max-reentry-signals', type='number', value=1, min=1, max=20, step=1, style={'width': '100%'}),
-            html.Small("Zone ends after N signals (1=first signal)", style={'color': 'gray'}),
-            dbc.Tooltip(
-                "Number of re-entry signals to wait for before completing the zone. "
-                "1 = zone ends at first signal (default). 3 = wait for 3rd signal. "
-                "Higher values mean longer zones but may filter out false signals.",
-                target="info-max-signals",
-                placement="right"
-            ),
-        ], width=3),
-    ], className="mb-3"),
-    
+    # --- EXIT SIGNAL GROUP ---
+    dbc.Card([
+        dbc.CardHeader(
+            html.Small("Exit Signal", style={'fontWeight': '600', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
+            style={'padding': '6px 12px', 'backgroundColor': '#f0f2f5'}
+        ),
+        dbc.CardBody([
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Label("Flat Long MA Threshold (%):"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-flat-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='flat-threshold-840', type='number', value=0.025, step=0.005, style={'width': '100%'}),
+                    html.Small("Values below this threshold", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "The long MA (40M/20M) is considered 'flat' when its rate of change is below this threshold. "
+                        "Lower values = stricter requirement for MA to be flat. Typical range: 0.01-0.05.",
+                        target="info-flat-threshold",
+                        placement="right"
+                    ),
+                ], width=3),
+                dbc.Col([
+                    html.Div([
+                        html.Label("Decreasing Short MA Threshold (%):"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-decreasing-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='flat-threshold-420', type='number', value=0, step=0.005, style={'width': '100%'}),
+                    html.Small("Negative values for decreasing", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "The short MA (20M/10M) is considered 'decreasing' when its rate of change is below this threshold. "
+                        "Use 0 to require any decrease, negative values for stronger decreases. Typical range: -0.05 to 0.05.",
+                        target="info-decreasing-threshold",
+                        placement="right"
+                    ),
+                ], width=3),
+                dbc.Col([
+                    html.Div([
+                        html.Label("Confirmation Window (All Views):"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-confirm-window", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='confirmation-window', type='number', value=20, min=5, max=60, step=5, style={'width': '100%'}),
+                    html.Small("Days in sliding window", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "Size of the sliding window (in trading days) used to check MA conditions after a crossing. "
+                        "The exit signal is confirmed when MA conditions are sustained for the threshold percentage "
+                        "of this window. Works for daily, monthly, and quarterly views. Typical: 15-30 days.",
+                        target="info-confirm-window",
+                        placement="right"
+                    ),
+                ], width=3),
+                dbc.Col([
+                    html.Div([
+                        html.Label("Confirmation Threshold (%):"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-confirm-threshold", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='confirmation-threshold', type='number', value=60, min=0, max=100, step=5, style={'width': '100%'}),
+                    html.Small("Min % of window with MA conditions", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "Percentage of days within the confirmation window that must have MA conditions met. "
+                        "Higher values = stricter confirmation, fewer false signals. The exit signal must be "
+                        "confirmed before the zone ends (naturally at re-entry). Typical: 50-70%.",
+                        target="info-confirm-threshold",
+                        placement="right"
+                    ),
+                ], width=3),
+            ]),
+        ], style={'padding': '12px'})
+    ], style={'marginBottom': '12px'}),
+
+    # --- RE-ENTRY GROUP ---
+    dbc.Card([
+        dbc.CardHeader(
+            html.Small("Re-Entry", style={'fontWeight': '600', 'textTransform': 'uppercase', 'letterSpacing': '0.5px'}),
+            style={'padding': '6px 12px', 'backgroundColor': '#f0f2f5'}
+        ),
+        dbc.CardBody([
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Label("Re-Entry Signals:"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-reentry", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Checklist(id='signal-checklist', options=[
+                        {'label': ' Bullish Engulfing', 'value': 'engulfing'},
+                        {'label': ' Hammer/Inverted Hammer', 'value': 'hammer'},
+                        {'label': ' Morning Star', 'value': 'morning_star'}
+                    ], value=['engulfing', 'hammer', 'morning_star'], inline=True, style={'marginTop': '5px'}),
+                    dbc.Tooltip(
+                        "Candlestick patterns that signal potential re-entry points when price is below MA and near lower Bollinger Band. "
+                        "Bullish Engulfing: green candle engulfs previous red. Hammer: long lower wick. Morning Star: 3-candle reversal pattern.",
+                        target="info-reentry",
+                        placement="right"
+                    ),
+                ], width=6),
+                dbc.Col([
+                    html.Div([
+                        html.Label("BB Distance for Re-Entry (%):"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-bb-distance", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='bb-distance-threshold', type='number', value=10, min=0, step=5, style={'width': '100%'}),
+                    html.Small("Max distance from lower BB", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "Maximum distance from the lower Bollinger Band for a re-entry signal to be valid. "
+                        "Signals must occur within this % of the lower BB. Lower values = more restrictive. Typical: 5-15%.",
+                        target="info-bb-distance",
+                        placement="right"
+                    ),
+                ], width=3),
+                dbc.Col([
+                    html.Div([
+                        html.Label("Max Signals per Zone:"),
+                        html.I(className="bi bi-info-circle ms-1", id="info-max-signals", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                    ], style={'display': 'flex', 'alignItems': 'center'}),
+                    dcc.Input(id='max-reentry-signals', type='number', value=1, min=1, max=20, step=1, style={'width': '100%'}),
+                    html.Small("Zone ends after N signals (1=first)", style={'color': 'gray'}),
+                    dbc.Tooltip(
+                        "Number of re-entry signals to wait for before completing the zone. "
+                        "1 = zone ends at first signal (default). 3 = wait for 3rd signal. "
+                        "Higher values mean longer zones but may filter out false signals.",
+                        target="info-max-signals",
+                        placement="right"
+                    ),
+                ], width=3),
+            ]),
+        ], style={'padding': '12px'})
+    ], style={'marginBottom': '12px'}),
+
     dbc.Row([
         dbc.Col([
             html.Div([
@@ -902,6 +917,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ])
     
     table = dash_table.DataTable(
+        id='rs-table',  # Add ID for callback reference
         data=metrics_df.to_dict('records'),
         columns=[
             {'name': 'Ticker', 'id': 'ticker'},
@@ -922,17 +938,26 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         style_cell={
             'textAlign': 'left',
             'padding': '10px',
-            'fontFamily': 'Arial, sans-serif'
+            'fontFamily': 'Arial, sans-serif',
+            'cursor': 'pointer'  # Show pointer cursor on hover
         },
         style_header={
             'backgroundColor': 'rgb(230, 230, 230)',
             'fontWeight': 'bold',
             'textAlign': 'center'
         },
-        style_data_conditional=style_data_conditional,
+        style_data_conditional=style_data_conditional + [
+            # Highlight row on hover
+            {
+                'if': {'state': 'active'},
+                'backgroundColor': 'rgba(0, 116, 217, 0.1)',
+                'border': '1px solid rgb(0, 116, 217)'
+            }
+        ],
         style_table={'overflowX': 'auto'},
         sort_action='native',
         filter_action='native',
+        row_selectable=False,  # Disable row selection checkbox
     )
     
     date_info = ""
@@ -962,10 +987,35 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
 
 
 # ============================================================================
+# TABLE ROW CLICK CALLBACK - Switch ticker when clicking table row
+# ============================================================================
+
+@app.callback(
+    Output('ticker-dropdown', 'value'),
+    Input('rs-table', 'active_cell'),
+    State('rs-table', 'data'),
+    prevent_initial_call=True
+)
+def switch_ticker_from_table(active_cell, table_data):
+    """
+    Switch to the ticker of the clicked row in the relative strength table.
+    """
+    if active_cell is None or table_data is None:
+        return dash.no_update
+    
+    row_index = active_cell['row']
+    
+    if 0 <= row_index < len(table_data):
+        ticker = table_data[row_index]['ticker']
+        return ticker
+    
+    return dash.no_update
+
+
+# ============================================================================
 # DEBOUNCING CALLBACKS - Delay parameter updates to prevent excessive recalculation
 # ============================================================================
 
-# Debounce confirmation window input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -980,7 +1030,6 @@ app.clientside_callback(
     prevent_initial_call=False
 )
 
-# Debounce confirmation threshold input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -995,7 +1044,6 @@ app.clientside_callback(
     prevent_initial_call=False
 )
 
-# Debounce max reentry signals input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -1010,7 +1058,6 @@ app.clientside_callback(
     prevent_initial_call=False
 )
 
-# Debounce flat threshold 840 input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -1025,7 +1072,6 @@ app.clientside_callback(
     prevent_initial_call=False
 )
 
-# Debounce flat threshold 420 input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -1040,7 +1086,6 @@ app.clientside_callback(
     prevent_initial_call=False
 )
 
-# Debounce BB distance threshold input (500ms delay)
 app.clientside_callback(
     """
     function(value) {
@@ -1171,18 +1216,22 @@ def update_chart(selected_ticker, period, ma_period, scale,
         decreasing_short = ma_short_change < flat_threshold_420
         combined_ma_condition = flat_long & decreasing_short
         
-        # Filter reentry signals by BB distance
-        # This is the first filter in the cascade before zone identification
         reentry_signals_filtered = reentry_signals.copy()
+        signals_removed = 0
         for idx in data.index[reentry_signals]:
             if idx in bb_long_values['lower'].index:
                 lower_bb = bb_long_values['lower'].loc[idx]
                 price = data.loc[idx, 'Close']
                 distance_from_bb = ((price - lower_bb) / lower_bb) * 100
                 
-                # Remove signal if it's too far from lower BB
                 if distance_from_bb > bb_distance_threshold:
                     reentry_signals_filtered.loc[idx] = False
+                    signals_removed += 1
+        
+        print(f"\n=== BB DISTANCE FILTERING ===")
+        print(f"Original reentry signals: {reentry_signals.sum()}")
+        print(f"After BB distance filter: {reentry_signals_filtered.sum()}")
+        print(f"Removed {signals_removed} signals (too far from lower BB)")
         
         if period in ['monthly', 'quarterly'] and 'original_date' in display_data.columns:
             period_end_dates = display_data['original_date']
@@ -1193,24 +1242,20 @@ def update_chart(selected_ticker, period, ma_period, scale,
         ma_at_period_dates.index = display_data.index
         
         if period == 'daily':
-            # Simple crossing detection for daily (no smoothing needed with progressive confirmation)
             price_crossing = detect_price_crossing_down_daily(display_data, ma_long_values, smoothing_window=3)
             
-            # Apply progressive confirmation (same as monthly/quarterly)
             if price_crossing.sum() > 0:
                 crossing_dates = display_data.index[price_crossing == 1]
                 valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
-                confirmed_signals = {}  # Map crossing_date -> confirmation_date
+                confirmed_signals = {}
                 
                 for cross_date in crossing_dates:
-                    # Use same progressive confirmation as monthly/quarterly
-                    # Natural limit: signal must be confirmed before zone ends
                     confirmed, reason, actual_crossing, confirm_date = progressive_confirmation_check(
                         cross_date, data, display_data, ma_long_values,
                         combined_ma_condition,
                         confirmation_window=confirmation_window,
                         confirmation_threshold=confirmation_threshold,
-                        max_wait_days=None  # No artificial limit - zone end is natural limit
+                        max_wait_days=None
                     )
                     
                     if confirmed and confirm_date is not None:
@@ -1222,22 +1267,20 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 confirmed_signals = {}
         else:
             price_crossing = detect_price_crossing_down_period(display_data, ma_at_period_dates)
-            confirmed_signals = {}  # Will be populated below for monthly/quarterly
+            confirmed_signals = {}
         
         if period in ['monthly', 'quarterly'] and price_crossing.sum() > 0:
             crossing_dates = display_data.index[price_crossing == 1]
             valid_crossings = pd.Series(0, index=display_data.index, dtype=float)
-            confirmed_signals = {}  # Map crossing_date -> confirmation_date
+            confirmed_signals = {}
             
             for cross_date in crossing_dates:
-                # Progressive confirmation using sliding window
-                # Natural limit: signal must be confirmed before zone ends
                 confirmed, reason, actual_crossing, confirm_date = progressive_confirmation_check(
                     cross_date, data, display_data, ma_long_values,
                     combined_ma_condition,
                     confirmation_window=confirmation_window,
                     confirmation_threshold=confirmation_threshold,
-                    max_wait_days=None  # No artificial limit - zone end is natural limit
+                    max_wait_days=None
                 )
                 
                 if confirmed and confirm_date is not None:
@@ -1246,11 +1289,10 @@ def update_chart(selected_ticker, period, ma_period, scale,
             
             price_crossing = valid_crossings
         else:
-            confirmed_signals = {}  # Empty for daily view
+            confirmed_signals = {}
         
         allow_reentry_at_ma = (strategy == 'orange')
         
-        # Pass BB-distance-filtered signals to zone identification
         entry_zones = identify_entry_zones_with_conditions(
             data, display_data, ma_long_values, reentry_signals_filtered, 
             price_crossing, combined_ma_condition,
@@ -1262,33 +1304,24 @@ def update_chart(selected_ticker, period, ma_period, scale,
         plotter = Plotter()
         plotter.fig = go.Figure()
         
-        # Create out_of_market mask based on when we're actually "out"
-        # Shade from confirmation date onwards (when exit signal is confirmed)
         out_of_market = pd.Series(False, index=display_data.index)
         
         if confirmed_signals:
-            # Build a mapping based on confirmation dates (not crossing dates)
             for zone in entry_zones:
                 zone_start_daily = zone['start']
                 matching_confirmation = None
                 
-                # Check if any confirmation date corresponds to this zone
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None:
-                        # Check if this confirmation corresponds to this zone
                         if crossing_date >= zone_start_daily - pd.Timedelta(days=60) and \
                            crossing_date <= zone_start_daily + pd.Timedelta(days=60):
                             matching_confirmation = confirm_date
                             break
                 
                 if matching_confirmation:
-                    # Shade from confirmation date to zone end
                     confirm_mask = display_data.index >= matching_confirmation
                     zone_end_mask = display_data.index <= zone['end']
                     out_of_market = out_of_market | (confirm_mask & zone_end_mask)
-        else:
-            # No confirmations - no shading (signals were rejected)
-            pass
         
         in_market_data = display_data[~out_of_market]
         out_market_data = display_data[out_of_market]
@@ -1330,10 +1363,9 @@ def update_chart(selected_ticker, period, ma_period, scale,
             ticker_name += f" ({original_currency})"
         long_name, short_name = period_label.split('/')
         
-        # IMPROVED SPACING: Increase vertical_spacing for better separation
         fig_with_bandwidth = make_subplots(
             rows=3, cols=1, shared_xaxes=True, 
-            vertical_spacing=0.20,  # INCREASED from 0.15 for more breathing room
+            vertical_spacing=0.20,
             row_heights=[0.6, 0.2, 0.2],
             subplot_titles=(
                 f"{ticker_name} ({display_label} Candles, {period_label} MA/BB) - Shaded = Out of Market", 
@@ -1396,8 +1428,6 @@ def update_chart(selected_ticker, period, ma_period, scale,
                         row=1, col=1
                     )
         
-        # Draw green triangles for all BB-distance-filtered re-entry signals
-        # Zones will apply the Max Re-Entry Signals filter on top of this
         reentry_dates = data.index[reentry_signals_filtered]
         reentry_prices = data.loc[reentry_signals_filtered, 'Low'] * 0.98
         if len(reentry_dates) > 0:
@@ -1430,36 +1460,25 @@ def update_chart(selected_ticker, period, ma_period, scale,
             row=3, col=1
         )
         
-        # Draw gray vertical lines at CONFIRMATION dates (not crossing dates)
-        # Lines go from MA value down to chart bottom for better visual clarity
-        # Add to BOTH the price chart (row 1) and MA change chart (row 3)
-        # CRITICAL: Only draw signals that fall WITHIN zone boundaries
         if confirmed_signals:
-            # Use confirmation dates from progressive check
-            signals_to_draw = {}  # Map confirm_date -> zone info
+            signals_to_draw = {}
             
             for zone in entry_zones:
                 zone_start = zone['start']
                 zone_end = zone['end']
                 
-                # Find if any confirmation date falls within this zone's boundaries
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None:
-                        # Check if confirmation date is WITHIN the zone
                         if confirm_date >= zone_start and confirm_date <= zone_end:
-                            # Store zone info with confirmation date
                             signals_to_draw[confirm_date] = zone
-                            break  # Only one signal per zone
+                            break
             
-            # Draw the signals on price chart (from MA to bottom)
             for confirm_date, zone in signals_to_draw.items():
-                # Get MA value at confirmation date
                 if confirm_date in ma_long_values.index:
                     ma_value = ma_long_values.loc[confirm_date]
                 else:
                     ma_value = ma_long_values.reindex([confirm_date], method='nearest').iloc[0]
                 
-                # Add line from MA value to bottom of chart
                 fig_with_bandwidth.add_shape(
                     type="line",
                     x0=confirm_date, x1=confirm_date,
@@ -1469,42 +1488,56 @@ def update_chart(selected_ticker, period, ma_period, scale,
                     row=1, col=1
                 )
                 
-                # Add full-height line to MA change chart
                 fig_with_bandwidth.add_vline(
                     x=confirm_date, line_width=2, line_dash="solid", 
                     line_color="darkgrey", opacity=0.7, row=3, col=1
                 )
         
-        # Add hover information to zones
-        # Create invisible scatter traces with hover text for each zone
         for zone in entry_zones:
             zone_start = zone['start']
             zone_end = zone['end']
             zone_type = zone['type']
             
-            # Get data points in the zone for positioning hover
             zone_mask = (display_data.index >= zone_start) & (display_data.index <= zone_end)
             zone_data = display_data[zone_mask]
             
             if len(zone_data) > 0:
-                # Position hover at middle of zone, near top of price range
                 mid_idx = len(zone_data) // 2
                 hover_x = zone_data.index[mid_idx]
                 hover_y = zone_data['High'].max() * 0.95
                 
-                # Format dates
                 start_str = zone_start.strftime('%Y-%m-%d')
                 
-                # Find exit signal date (confirmation date within this zone)
+                # Get entry price at zone start
+                if zone_start in display_data.index:
+                    entry_price = display_data.loc[zone_start, 'Close']
+                else:
+                    # If exact date not in index, find nearest
+                    nearest_start = display_data.index[display_data.index >= zone_start][0] if any(display_data.index >= zone_start) else display_data.index[-1]
+                    entry_price = display_data.loc[nearest_start, 'Close']
+                
                 exit_signal_str = "N/A"
+                exit_price = None
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None and confirm_date >= zone_start and confirm_date <= zone_end:
                         exit_signal_str = confirm_date.strftime('%Y-%m-%d')
+                        # Get exit price at confirmation date
+                        if confirm_date in display_data.index:
+                            exit_price = display_data.loc[confirm_date, 'Close']
+                        else:
+                            nearest_exit = display_data.index[display_data.index >= confirm_date][0] if any(display_data.index >= confirm_date) else display_data.index[-1]
+                            exit_price = display_data.loc[nearest_exit, 'Close']
                         break
                 
                 end_str = zone_end.strftime('%Y-%m-%d')
                 
-                # Helper function for ordinal numbers
+                # Get re-entry price at zone end
+                if zone_end in display_data.index:
+                    reentry_price = display_data.loc[zone_end, 'Close']
+                else:
+                    nearest_end = display_data.index[display_data.index >= zone_end][0] if any(display_data.index >= zone_end) else display_data.index[-1]
+                    reentry_price = display_data.loc[nearest_end, 'Close']
+                
                 def ordinal(n):
                     if 10 <= n % 100 <= 20:
                         suffix = 'th'
@@ -1512,23 +1545,23 @@ def update_chart(selected_ticker, period, ma_period, scale,
                         suffix = {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
                     return f"{n}{suffix}"
                 
-                # Build hover text
                 if zone_type == 'green':
                     n_signals = max_reentry_signals
                     signal_text = f"{ordinal(n_signals)} Re-Entry Signal"
+                    exit_line = f"Exit: {exit_signal_str} (${exit_price:.2f})" if exit_price is not None else f"Exit: {exit_signal_str}"
                     hover_text = (f"<b>Green Zone</b><br>"
-                                f"Start: {start_str}<br>"
-                                f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} ({signal_text})")
+                                f"Start: {start_str} (${entry_price:.2f})<br>"
+                                f"{exit_line}<br>"
+                                f"Re-entry: {end_str} (${reentry_price:.2f}) ({signal_text})")
                     marker_color = 'rgba(0,255,0,0.3)'
                 else:
+                    exit_line = f"Exit: {exit_signal_str} (${exit_price:.2f})" if exit_price is not None else f"Exit: {exit_signal_str}"
                     hover_text = (f"<b>Orange Zone</b><br>"
-                                f"Start: {start_str}<br>"
-                                f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} (MA Crossing)")
+                                f"Start: {start_str} (${entry_price:.2f})<br>"
+                                f"{exit_line}<br>"
+                                f"Re-entry: {end_str} (${reentry_price:.2f}) (MA Crossing)")
                     marker_color = 'rgba(255,165,0,0.3)'
                 
-                # Add invisible marker with hover text
                 fig_with_bandwidth.add_trace(
                     go.Scatter(
                         x=[hover_x],
@@ -1600,39 +1633,60 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 bgcolor="rgba(255,255,255,0.8)", 
                 bordercolor="lightgray", 
                 borderwidth=1
-            ),
-            xaxis=dict(
-                rangeselector=dict(
-                    buttons=[
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"), 
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all", label="All")
-                    ], 
-                    y=1.18,
-                    yanchor="top"
-                )
             )
         )
         
         if period == 'quarterly':
-            tick_vals = display_data.index.tolist()
-            tick_text = format_quarter_labels_two_levels(display_data.index)
+            tick_vals, tick_text = format_quarter_labels_two_levels(display_data.index, show_all=True)
             fig_with_bandwidth.update_xaxes(
-                tickmode='array', tickvals=tick_vals, ticktext=tick_text, 
+                tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
             )
         elif period == 'monthly':
-            tick_vals = display_data.index.tolist()
-            tick_text = format_monthly_labels_as_quarters(display_data.index)
+            tick_vals, tick_text = format_monthly_labels_as_quarters(display_data.index, show_all=True)
             fig_with_bandwidth.update_xaxes(
-                tickmode='array', tickvals=tick_vals, ticktext=tick_text, 
+                tickmode='array', tickvals=tick_vals, ticktext=tick_text,
                 tickangle=0, row=1, col=1
             )
         
+        # For long histories, set initial visible range to last 15 years to avoid label overlap
+        if period in ['monthly', 'quarterly']:
+            time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
+            if time_span_years > 15:
+                initial_start = display_data.index[-1] - pd.DateOffset(years=15)
+                # Set range on all three subplots (they share x-axis)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=1, col=1)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=2, col=1)
+                fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=3, col=1)
+        
         fig_with_bandwidth.update_xaxes(row=1, col=1, rangeslider_visible=False, showticklabels=True)
         fig_with_bandwidth.update_xaxes(row=2, col=1, rangeslider_visible=False, showticklabels=True)
-        fig_with_bandwidth.update_xaxes(title_text="Date", row=3, col=1, rangeslider_visible=True, showticklabels=True)
+        fig_with_bandwidth.update_xaxes(
+            title_text="Date", 
+            row=3, col=1, 
+            rangeslider_visible=True, 
+            showticklabels=True,
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=3, label="3m", step="month", stepmode="backward"),
+                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1y", step="year", stepmode="backward"),
+                    dict(count=2, label="2y", step="year", stepmode="backward"),
+                    dict(count=3, label="3y", step="year", stepmode="backward"),
+                    dict(count=5, label="5y", step="year", stepmode="backward"),
+                    dict(count=10, label="10y", step="year", stepmode="backward"),
+                    dict(count=15, label="15y", step="year", stepmode="backward"),
+                    dict(step="all", label="All")
+                ]),
+                bgcolor="lightgray",
+                activecolor="darkgray",
+                x=0.0,
+                y=1.15,
+                xanchor="left",
+                yanchor="top"
+            )
+        )
         
         y_type = 'log' if scale == 'log' else 'linear'
         fig_with_bandwidth.update_yaxes(title_text="Price", type=y_type, autorange=True, row=1, col=1)
@@ -1647,7 +1701,8 @@ def update_chart(selected_ticker, period, ma_period, scale,
         traceback.print_exc()
         plotter = Plotter()
         fig = plotter.plot_candlestick(ticker_data.get(selected_ticker, list(ticker_data.values())[0]), name=selected_ticker)
-        return fig, f"Error: {selected_ticker}"    
+        return fig, f"Error: {selected_ticker}"
+
 
 def main():
     """Entry point for the application"""

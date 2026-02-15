@@ -5,61 +5,95 @@ This module handles formatting of chart labels for different time periods.
 """
 
 
-def format_quarter_labels_two_levels(dates):
+def format_quarter_labels_two_levels(dates, show_all=True):
     """
     Format dates with quarters on top line and years on bottom line.
     Year is shown between Q4 and Q1 (at year boundary) consistent with daily view.
     
-    Example output:
+    Args:
+        dates: DatetimeIndex of dates to format
+        show_all: If True, show all quarters (Q1-Q4). If False, show only Q1 and Q3.
+    
+    Returns:
+        tuple: (tick_vals, tick_text) where both lists have matching length
+    
+    Example output (show_all=True):
     Q3    Q4         Q1     Q2     Q3    Q4         Q1     Q2     Q3
                 2021                           2022
+    
+    Example output (show_all=False):
+    Q3                Q1            Q3                Q1            Q3
+                2021                           2022
     """
-    labels = []
+    tick_vals = []
+    tick_text = []
     prev_year = None
     
     for i, date in enumerate(dates):
         quarter = (date.month - 1) // 3 + 1
         year = date.year
+        
+        # Skip Q2 and Q4 if show_all is False
+        if not show_all and quarter in (2, 4):
+            continue
         
         is_first = prev_year is None
         is_q1 = quarter == 1
         year_changed = year != prev_year if prev_year is not None else False
         
+        tick_vals.append(date)
+        
         if is_first:
             # First label - show quarter with year below
-            labels.append(f"Q{quarter}<br><b>{year}</b>")
+            tick_text.append(f"Q{quarter}<br><b>{year}</b>")
         elif year_changed and is_q1:
             # Year changed at Q1 - show year below Q1
-            labels.append(f"Q{quarter}<br><b>{year}</b>")
+            tick_text.append(f"Q{quarter}<br><b>{year}</b>")
         else:
             # Regular quarter - no year
-            labels.append(f"Q{quarter}<br> ")
+            tick_text.append(f"Q{quarter}<br> ")
         
         prev_year = year
     
-    return labels
+    return tick_vals, tick_text
 
 
-def format_monthly_labels_as_quarters(dates):
+def format_monthly_labels_as_quarters(dates, show_all=True):
     """
     Format monthly dates showing quarters (Q1-Q4) and year between Q4 and Q1.
     Shows quarter label only in the MIDDLE month of each quarter (Feb, May, Aug, Nov).
     Year shown at January (between Q4 and Q1) consistent with daily view.
     
-    Example output:
+    Args:
+        dates: DatetimeIndex of dates to format
+        show_all: If True, show all middle months (Feb, May, Aug, Nov) plus Jan.
+                  If False, show only Jan (year), Feb (Q1), and Aug (Q3).
+    
+    Returns:
+        tuple: (tick_vals, tick_text) where both lists have matching length
+    
+    Example output (show_all=True):
          Q2                Q3                Q4              Q1         Q2
                                                   2021                     2022
+    
+    Example output (show_all=False):
+                           Q3                                Q1         
+                                                  2021                     2022
     """
-    labels = []
+    tick_vals = []
+    tick_text = []
     prev_year = None
+    
+    # Middle months to display
+    if show_all:
+        middle_months = {2: 'Q1', 5: 'Q2', 8: 'Q3', 11: 'Q4'}
+    else:
+        middle_months = {2: 'Q1', 8: 'Q3'}  # Only Feb (Q1) and Aug (Q3)
     
     for i, date in enumerate(dates):
         quarter = (date.month - 1) // 3 + 1
         year = date.year
         month = date.month
-        
-        # Middle months of each quarter: Feb(2), May(5), Aug(8), Nov(11)
-        middle_months = {2: 'Q1', 5: 'Q2', 8: 'Q3', 11: 'Q4'}
         
         if month in middle_months:
             # This is a middle month - show the quarter
@@ -67,25 +101,35 @@ def format_monthly_labels_as_quarters(dates):
             
             is_first = prev_year is None
             
+            tick_vals.append(date)
+            
             if is_first:
                 # First label - show year
-                labels.append(f"{quarter_label}<br><b>{year}</b>")
+                tick_text.append(f"{quarter_label}<br><b>{year}</b>")
             else:
-                labels.append(f"{quarter_label}<br> ")
+                tick_text.append(f"{quarter_label}<br> ")
         elif month == 1:
             # January - show year at year boundary (between Q4 and Q1)
             year_changed = year != prev_year if prev_year is not None else False
+            
+            tick_vals.append(date)
+            
             if year_changed or prev_year is None:
-                labels.append(f"<br><b>{year}</b>")
+                tick_text.append(f"<br><b>{year}</b>")
             else:
-                labels.append(" <br> ")
+                tick_text.append(" <br> ")
         else:
-            # Not a middle month and not January - no label
-            labels.append(" <br> ")
+            # Not a middle month and not January
+            # Skip entirely if show_all is False, otherwise add empty label
+            if show_all:
+                tick_vals.append(date)
+                tick_text.append(" <br> ")
+            else:
+                continue
         
         prev_year = year
     
-    return labels
+    return tick_vals, tick_text
 
 
 def format_daily_labels_simple(dates, max_labels=40):
