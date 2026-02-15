@@ -1508,13 +1508,35 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 
                 start_str = zone_start.strftime('%Y-%m-%d')
                 
+                # Get entry price at zone start
+                if zone_start in display_data.index:
+                    entry_price = display_data.loc[zone_start, 'Close']
+                else:
+                    # If exact date not in index, find nearest
+                    nearest_start = display_data.index[display_data.index >= zone_start][0] if any(display_data.index >= zone_start) else display_data.index[-1]
+                    entry_price = display_data.loc[nearest_start, 'Close']
+                
                 exit_signal_str = "N/A"
+                exit_price = None
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None and confirm_date >= zone_start and confirm_date <= zone_end:
                         exit_signal_str = confirm_date.strftime('%Y-%m-%d')
+                        # Get exit price at confirmation date
+                        if confirm_date in display_data.index:
+                            exit_price = display_data.loc[confirm_date, 'Close']
+                        else:
+                            nearest_exit = display_data.index[display_data.index >= confirm_date][0] if any(display_data.index >= confirm_date) else display_data.index[-1]
+                            exit_price = display_data.loc[nearest_exit, 'Close']
                         break
                 
                 end_str = zone_end.strftime('%Y-%m-%d')
+                
+                # Get re-entry price at zone end
+                if zone_end in display_data.index:
+                    reentry_price = display_data.loc[zone_end, 'Close']
+                else:
+                    nearest_end = display_data.index[display_data.index >= zone_end][0] if any(display_data.index >= zone_end) else display_data.index[-1]
+                    reentry_price = display_data.loc[nearest_end, 'Close']
                 
                 def ordinal(n):
                     if 10 <= n % 100 <= 20:
@@ -1526,16 +1548,18 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 if zone_type == 'green':
                     n_signals = max_reentry_signals
                     signal_text = f"{ordinal(n_signals)} Re-Entry Signal"
+                    exit_line = f"Exit: {exit_signal_str} (${exit_price:.2f})" if exit_price is not None else f"Exit: {exit_signal_str}"
                     hover_text = (f"<b>Green Zone</b><br>"
-                                f"Start: {start_str}<br>"
-                                f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} ({signal_text})")
+                                f"Start: {start_str} (${entry_price:.2f})<br>"
+                                f"{exit_line}<br>"
+                                f"Re-entry: {end_str} (${reentry_price:.2f}) ({signal_text})")
                     marker_color = 'rgba(0,255,0,0.3)'
                 else:
+                    exit_line = f"Exit: {exit_signal_str} (${exit_price:.2f})" if exit_price is not None else f"Exit: {exit_signal_str}"
                     hover_text = (f"<b>Orange Zone</b><br>"
-                                f"Start: {start_str}<br>"
-                                f"Exit: {exit_signal_str}<br>"
-                                f"Re-entry: {end_str} (MA Crossing)")
+                                f"Start: {start_str} (${entry_price:.2f})<br>"
+                                f"{exit_line}<br>"
+                                f"Re-entry: {end_str} (${reentry_price:.2f}) (MA Crossing)")
                     marker_color = 'rgba(255,165,0,0.3)'
                 
                 fig_with_bandwidth.add_trace(
