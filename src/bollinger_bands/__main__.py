@@ -1709,35 +1709,31 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 
                 start_str = zone_start.strftime('%Y-%m-%d')
                 
-                # Get entry price at zone start
-                if zone_start in display_data.index:
-                    entry_price = display_data.loc[zone_start, 'Close']
-                else:
-                    # If exact date not in index, find nearest
-                    nearest_start = display_data.index[display_data.index >= zone_start][0] if any(display_data.index >= zone_start) else display_data.index[-1]
-                    entry_price = display_data.loc[nearest_start, 'Close']
+                
+                # Use raw daily Close at the exact signal date via .asof()
+                entry_price = data['Close'].asof(zone_start)
                 
                 exit_signal_str = "N/A"
                 exit_price = None
                 for crossing_date, confirm_date in confirmed_signals.items():
                     if confirm_date is not None and confirm_date >= zone_start and confirm_date <= zone_end:
                         exit_signal_str = confirm_date.strftime('%Y-%m-%d')
-                        # Get exit price at confirmation date
-                        if confirm_date in display_data.index:
-                            exit_price = display_data.loc[confirm_date, 'Close']
-                        else:
-                            nearest_exit = display_data.index[display_data.index >= confirm_date][0] if any(display_data.index >= confirm_date) else display_data.index[-1]
-                            exit_price = display_data.loc[nearest_exit, 'Close']
+                        exit_price = data['Close'].asof(confirm_date)
                         break
                 
                 end_str = zone_end.strftime('%Y-%m-%d')
                 
-                # Get re-entry price at zone end
-                if zone_end in display_data.index:
-                    reentry_price = display_data.loc[zone_end, 'Close']
+                # Find the reentry signal within this zone
+                reentry_signal_dates = data.index[reentry_signals_filtered]
+                zone_reentry_dates = reentry_signal_dates[
+                    (reentry_signal_dates >= zone_start) & (reentry_signal_dates <= zone_end)
+                ]
+                if len(zone_reentry_dates) > 0:
+                    actual_reentry_date = zone_reentry_dates[-1]
+                    end_str = actual_reentry_date.strftime('%Y-%m-%d')
+                    reentry_price = data.loc[actual_reentry_date, 'Close']
                 else:
-                    nearest_end = display_data.index[display_data.index >= zone_end][0] if any(display_data.index >= zone_end) else display_data.index[-1]
-                    reentry_price = display_data.loc[nearest_end, 'Close']
+                    reentry_price = data['Close'].asof(zone_end)
                 
                 def ordinal(n):
                     if 10 <= n % 100 <= 20:
