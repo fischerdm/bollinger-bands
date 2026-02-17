@@ -1086,6 +1086,19 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             'fontFamily': 'Arial, sans-serif',
             'cursor': 'pointer'  # Show pointer cursor on hover
         },
+        style_cell_conditional=[
+            {
+                'if': {'column_id': '⭐'},
+                'textAlign': 'center',
+                'width': '40px',
+                'minWidth': '40px',
+                'maxWidth': '40px',
+                'fontSize': '16px',
+                'padding': '4px',
+                'cursor': 'pointer',
+                'color': '#f5a623',
+            }
+        ],
         style_header={
             'backgroundColor': 'rgb(230, 230, 230)',
             'fontWeight': 'bold',
@@ -1148,24 +1161,41 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
 
 @app.callback(
     Output('ticker-dropdown', 'value'),
+    Output('watchlist-store', 'data', allow_duplicate=True),
     Input('rs-table', 'active_cell'),
     State('rs-table', 'data'),
+    State('watchlist-store', 'data'),
     prevent_initial_call=True
 )
-def switch_ticker_from_table(active_cell, table_data):
+def handle_rs_table_click(active_cell, table_data, watchlist):
     """
-    Switch to the ticker of the clicked row in the relative strength table.
+    Handle clicks on the relative strength table:
+    - Click ⭐ column: toggle watchlist for that ticker
+    - Click any other column: switch to that ticker
     """
     if active_cell is None or table_data is None:
-        return dash.no_update
-    
+        return dash.no_update, dash.no_update
+
     row_index = active_cell['row']
-    
-    if 0 <= row_index < len(table_data):
-        ticker = table_data[row_index]['ticker']
-        return ticker
-    
-    return dash.no_update
+    col_id = active_cell.get('column_id', '')
+
+    if not (0 <= row_index < len(table_data)):
+        return dash.no_update, dash.no_update
+
+    ticker = table_data[row_index]['ticker']
+    watchlist = watchlist or []
+
+    if col_id == '⭐':
+        # Toggle star for this ticker
+        if ticker in watchlist:
+            watchlist = [t for t in watchlist if t != ticker]
+        else:
+            watchlist = watchlist + [ticker]
+        save_watchlist(watchlist)
+        return dash.no_update, watchlist
+    else:
+        # Switch to this ticker
+        return ticker, dash.no_update
 
 
 # ============================================================================
