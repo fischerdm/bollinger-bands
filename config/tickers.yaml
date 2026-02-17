@@ -81,6 +81,31 @@ tickers:
     enabled: true
     currency: CHF
 
+  - symbol: ISFE.L
+    name: "iShares MSCI AC Far East ex-Japan Small Cap UCITS ETF USD (Dist)"
+    enabled: true
+    currency: GBP
+
+  - symbol: IEMS.L
+    name: "iShares MSCI EM Small Cap UCITS ETF USD (Dist)"
+    enabled: true
+    currency: USD
+
+  - symbol: XMME.DE
+    name: "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
+    enabled: true
+    currency: EUR
+
+  - symbol: FLXI.SW
+    name: "Franklin FTSE India UCITS ETF"
+    enabled: true
+    currency: USD
+
+  - symbol: JREM.SW
+    name: "JPMorgan ETFs (Ireland) ICAV - Global Emerging Markets Research Enh Idx Eq Active UCITS ETF USD Acc"
+    enabled: true
+    currency: USD
+
 # Currency settings
 currency_settings:
   # Available currencies for conversion
