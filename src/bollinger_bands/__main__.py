@@ -16,6 +16,8 @@ from bollinger_bands.indicators.band_width import BandWidth
 from bollinger_bands.visualization.plotter import Plotter
 import datetime
 import pandas as pd
+import json
+import os
 from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 import numpy as np
@@ -102,6 +104,32 @@ print("="*80)
 
 # Using JOURNAL theme - Professional newspaper/publication style
 # Clean, traditional, great for financial reports
+
+# ============================================================================
+# WATCHLIST (PERSISTENT STAR/FAVOURITE TICKERS)
+# ============================================================================
+
+WATCHLIST_FILE = 'watchlist.json'
+
+def load_watchlist():
+    """Load watchlist from disk. Returns a list of ticker symbols."""
+    if os.path.exists(WATCHLIST_FILE):
+        try:
+            with open(WATCHLIST_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_watchlist(watchlist):
+    """Save watchlist to disk."""
+    try:
+        with open(WATCHLIST_FILE, 'w') as f:
+            json.dump(watchlist, f)
+    except Exception as e:
+        print(f"Warning: could not save watchlist: {e}")
+
+
 app = dash.Dash(__name__, external_stylesheets=[
     dbc.themes.JOURNAL,  # Changed to JOURNAL for traditional professional look
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
@@ -169,6 +197,7 @@ app.layout = dbc.Container([
     dcc.Store(id='debounced-flat-threshold-840', data=0.025),
     dcc.Store(id='debounced-flat-threshold-420', data=0),
     dcc.Store(id='debounced-bb-distance-threshold', data=10),
+    dcc.Store(id='watchlist-store', data=load_watchlist()),  # Persistent watchlist
     
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
@@ -196,7 +225,18 @@ app.layout = dbc.Container([
                 html.Label("Select Ticker:"),
                 html.I(className="bi bi-info-circle ms-1", id="info-ticker", style={'cursor': 'pointer', 'color': '#6c757d'}),
             ], style={'display': 'flex', 'alignItems': 'center'}),
-            dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value=tickers[0] if tickers else 'EEM'),
+            html.Div([
+                dcc.Dropdown(id='ticker-dropdown', options=[{'label': t, 'value': t} for t in tickers], value=tickers[0] if tickers else 'EEM',
+                             style={'flex': '1'}),
+                html.Button('☆', id='star-button', n_clicks=0,
+                            style={'marginLeft': '8px', 'fontSize': '20px', 'background': 'none',
+                                   'border': '1px solid #ccc', 'borderRadius': '4px',
+                                   'cursor': 'pointer', 'padding': '0 8px', 'lineHeight': '1'}),
+                html.Button('⭐ Only', id='watchlist-filter-toggle', n_clicks=0,
+                            style={'marginLeft': '4px', 'fontSize': '12px', 'background': '#f8f9fa',
+                                   'border': '1px solid #ccc', 'borderRadius': '4px',
+                                   'cursor': 'pointer', 'padding': '4px 8px', 'whiteSpace': 'nowrap'}),
+            ], style={'display': 'flex', 'alignItems': 'center', 'marginTop': '4px'}),
             dbc.Tooltip(
                 "Choose which ETF or stock to analyze. Each ticker represents different market sectors or regions.",
                 target="info-ticker",
@@ -505,6 +545,15 @@ app.layout = dbc.Container([
                     placement="right"
                 ),
             ], width=4),
+            dbc.Col([
+                html.Label("Watchlist:", style={'fontWeight': 'bold'}),
+                html.Div([
+                    html.Button('⭐ Only', id='rs-watchlist-filter-toggle', n_clicks=0,
+                                style={'fontSize': '12px', 'background': '#f8f9fa',
+                                       'border': '1px solid #ccc', 'borderRadius': '4px',
+                                       'cursor': 'pointer', 'padding': '6px 12px'}),
+                ], style={'marginTop': '4px'}),
+            ], width=2),
         ], className="mb-4"),
         
         html.Div(id='relative-strength-table'),
@@ -631,6 +680,88 @@ app.layout = dbc.Container([
 
 # ============================================================================
 # ALL CALLBACKS - UNCHANGED FROM ORIGINAL
+# ============================================================================
+# WATCHLIST CALLBACKS
+# ============================================================================
+
+@app.callback(
+    Output('watchlist-store', 'data'),
+    Output('star-button', 'children'),
+    Output('star-button', 'style'),
+    Input('star-button', 'n_clicks'),
+    State('ticker-dropdown', 'value'),
+    State('watchlist-store', 'data'),
+    prevent_initial_call=True
+)
+def toggle_star(n_clicks, ticker, watchlist):
+    """Add or remove the current ticker from the watchlist."""
+    if not ticker:
+        raise dash.exceptions.PreventUpdate
+    watchlist = watchlist or []
+    if ticker in watchlist:
+        watchlist = [t for t in watchlist if t != ticker]
+        starred = False
+    else:
+        watchlist = watchlist + [ticker]
+        starred = True
+    save_watchlist(watchlist)
+    icon = '⭐' if starred else '☆'
+    style = {
+        'marginLeft': '8px', 'fontSize': '20px', 'background': 'none',
+        'border': '1px solid #ccc', 'borderRadius': '4px',
+        'cursor': 'pointer', 'padding': '0 8px', 'lineHeight': '1',
+        'color': '#f5a623' if starred else 'inherit'
+    }
+    return watchlist, icon, style
+
+
+@app.callback(
+    Output('star-button', 'children', allow_duplicate=True),
+    Output('star-button', 'style', allow_duplicate=True),
+    Input('ticker-dropdown', 'value'),
+    State('watchlist-store', 'data'),
+    prevent_initial_call='initial_duplicate'
+)
+def update_star_display(ticker, watchlist):
+    """Update the star button appearance when the selected ticker changes."""
+    watchlist = watchlist or []
+    starred = ticker in watchlist
+    icon = '⭐' if starred else '☆'
+    style = {
+        'marginLeft': '8px', 'fontSize': '20px', 'background': 'none',
+        'border': '1px solid #ccc', 'borderRadius': '4px',
+        'cursor': 'pointer', 'padding': '0 8px', 'lineHeight': '1',
+        'color': '#f5a623' if starred else 'inherit'
+    }
+    return icon, style
+
+
+@app.callback(
+    Output('ticker-dropdown', 'options'),
+    Output('watchlist-filter-toggle', 'style'),
+    Input('watchlist-filter-toggle', 'n_clicks'),
+    State('watchlist-store', 'data'),
+    prevent_initial_call=False
+)
+def filter_ticker_dropdown(n_clicks, watchlist):
+    """Filter the ticker dropdown to show only watchlist tickers when toggle is active."""
+    watchlist = watchlist or []
+    active = (n_clicks or 0) % 2 == 1
+    if active and watchlist:
+        options = [{'label': f'⭐ {t}', 'value': t} for t in tickers if t in watchlist]
+    else:
+        options = [{'label': t, 'value': t} for t in tickers]
+    toggle_style = {
+        'marginLeft': '4px', 'fontSize': '12px',
+        'border': '1px solid #ccc', 'borderRadius': '4px',
+        'cursor': 'pointer', 'padding': '4px 8px', 'whiteSpace': 'nowrap',
+        'background': '#f5a623' if active else '#f8f9fa',
+        'color': 'white' if active else 'inherit',
+        'fontWeight': 'bold' if active else 'normal',
+    }
+    return options, toggle_style
+
+
 # ============================================================================
 
 @app.callback(
@@ -790,15 +921,19 @@ def update_target_date(relayout_data):
 
 
 @app.callback(
-    Output('relative-strength-table', 'children'),
+    [Output('relative-strength-table', 'children'),
+     Output('rs-watchlist-filter-toggle', 'style')],
     [Input('ticker-dropdown', 'value'),
      Input('rs-filter-dropdown', 'value'),
      Input('rs-reference-dropdown', 'value'),
      Input('rs-calculation-currency-dropdown', 'value'),
-     Input('target-date-store', 'data')]
+     Input('target-date-store', 'data'),
+     Input('rs-watchlist-filter-toggle', 'n_clicks'),
+     Input('watchlist-store', 'data')]
 )
 def update_relative_strength_table(selected_ticker, filter_value, reference_ticker, 
-                                   calculation_currency, target_date):
+                                   calculation_currency, target_date,
+                                   rs_watchlist_clicks, watchlist):
     """Update the relative strength comparison table with USD-normalized data"""
     
     target_date_ts = None
@@ -856,6 +991,12 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     elif filter_value == '12m_negative':
         metrics_df = metrics_df[metrics_df['12M Performance (%)'] < 0]
     
+    # Apply watchlist filter if toggle is active
+    watchlist = watchlist or []
+    rs_watchlist_active = (rs_watchlist_clicks or 0) % 2 == 1
+    if rs_watchlist_active and watchlist:
+        metrics_df = metrics_df[metrics_df['ticker'].isin(watchlist)]
+    
     # Sort by 6M Performance Relative to Benchmark (default)
     metrics_df = metrics_df.sort_values('6M Perf Rel. Bench', ascending=False)
     
@@ -870,10 +1011,13 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     metrics_df['Ticker Name Short'] = metrics_df['Ticker Name'].apply(lambda x: truncate_name(x, max_length=25))
     metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']
     
+    # Add star column based on watchlist
+    metrics_df['⭐'] = metrics_df['ticker'].apply(lambda t: '⭐' if t in watchlist else '')
+    
     # Rename column to add (%) suffix for display
     metrics_df['6M Perf Rel. Bench (%)'] = metrics_df['6M Perf Rel. Bench']
     
-    metrics_df = metrics_df[['ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
+    metrics_df = metrics_df[['⭐', 'ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 
                               'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
@@ -920,6 +1064,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         id='rs-table',  # Add ID for callback reference
         data=metrics_df.to_dict('records'),
         columns=[
+            {'name': '⭐', 'id': '⭐'},
             {'name': 'Ticker', 'id': 'ticker'},
             {'name': 'Name', 'id': 'Ticker Name Short'},
             {'name': '6M Perf (%)', 'id': '6M Performance (%)', 'type': 'numeric', 'format': {'specifier': '.2f'}},
@@ -967,7 +1112,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     benchmark_name = tickers_dict.get(reference_ticker, reference_ticker)
     benchmark_info = f" | Benchmark: {benchmark_name}"
     
-    return html.Div([
+    result = html.Div([
         html.H5(f"Relative Strength Metrics{date_info}{benchmark_info}{currency_note}", 
                 style={'marginBottom': '1rem'}),
         html.P([
@@ -984,6 +1129,17 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ], style={'fontSize': '14px', 'color': '#666', 'marginBottom': '1rem'}),
         table
     ])
+    
+    rs_watchlist_toggle_style = {
+        'fontSize': '12px',
+        'border': '1px solid #ccc', 'borderRadius': '4px',
+        'cursor': 'pointer', 'padding': '6px 12px',
+        'background': '#f5a623' if rs_watchlist_active else '#f8f9fa',
+        'color': 'white' if rs_watchlist_active else 'inherit',
+        'fontWeight': 'bold' if rs_watchlist_active else 'normal',
+    }
+    
+    return result, rs_watchlist_toggle_style
 
 
 # ============================================================================
