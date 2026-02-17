@@ -109,7 +109,7 @@ print("="*80)
 # WATCHLIST (PERSISTENT STAR/FAVOURITE TICKERS)
 # ============================================================================
 
-WATCHLIST_FILE = 'watchlist.json'
+WATCHLIST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'watchlist.json')
 
 def load_watchlist():
     """Load watchlist from disk. Returns a list of ticker symbols."""
@@ -197,7 +197,7 @@ app.layout = dbc.Container([
     dcc.Store(id='debounced-flat-threshold-840', data=0.025),
     dcc.Store(id='debounced-flat-threshold-420', data=0),
     dcc.Store(id='debounced-bb-distance-threshold', data=10),
-    dcc.Store(id='watchlist-store', data=load_watchlist()),  # Persistent watchlist
+    dcc.Store(id='watchlist-store', data=load_watchlist(), storage_type='local'),  # Persistent watchlist - uses localStorage
     
     # Header with attribution
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
@@ -683,6 +683,21 @@ app.layout = dbc.Container([
 # ============================================================================
 # WATCHLIST CALLBACKS
 # ============================================================================
+
+@app.callback(
+    Output('watchlist-store', 'data', allow_duplicate=True),
+    Input('watchlist-store', 'data'),
+    prevent_initial_call='initial_duplicate'
+)
+def sync_watchlist_on_load(store_data):
+    """On page load, merge browser localStorage with JSON file so both stay in sync."""
+    store_data = store_data or []
+    file_data = load_watchlist()
+    # Union of both sources — neither overwrites the other
+    merged = list(dict.fromkeys(file_data + [t for t in store_data if t not in file_data]))
+    if merged != file_data:
+        save_watchlist(merged)
+    return merged
 
 @app.callback(
     Output('watchlist-store', 'data'),
