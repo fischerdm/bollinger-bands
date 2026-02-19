@@ -102,9 +102,6 @@ print("="*80)
 # DASH APP SETUP - PROFESSIONAL THEME
 # ============================================================================
 
-# Using JOURNAL theme - Professional newspaper/publication style
-# Clean, traditional, great for financial reports
-
 # ============================================================================
 # WATCHLIST (PERSISTENT STAR/FAVOURITE TICKERS)
 # ============================================================================
@@ -131,10 +128,10 @@ def save_watchlist(watchlist):
 
 
 app = dash.Dash(__name__, external_stylesheets=[
-    dbc.themes.JOURNAL,  # Changed to JOURNAL for traditional professional look
+    dbc.themes.JOURNAL,
     "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css"
 ])
-load_figure_template("journal")  # Match the theme
+load_figure_template("journal")
 
 # ============================================================================
 # DATA MANAGEMENT UI COMPONENTS
@@ -186,7 +183,7 @@ data_details_modal = dbc.Modal([
 ], id="data-details-modal", size="xl", is_open=False)
 
 # ============================================================================
-# APP LAYOUT - IMPROVED SPACING
+# APP LAYOUT
 # ============================================================================
 
 app.layout = dbc.Container([
@@ -197,9 +194,9 @@ app.layout = dbc.Container([
     dcc.Store(id='debounced-flat-threshold-840', data=0.025),
     dcc.Store(id='debounced-flat-threshold-420', data=0),
     dcc.Store(id='debounced-bb-distance-threshold', data=10),
-    dcc.Store(id='watchlist-store', data=load_watchlist(), storage_type='local'),  # Persistent watchlist - uses localStorage
+    dcc.Store(id='watchlist-store', data=load_watchlist(), storage_type='local'),
     
-    # Header with attribution
+    # Header
     html.H1("Stock Chart with Bollinger Bands & Trading Signals", 
             style={'textAlign': 'center', 'marginTop': '20px', 'marginBottom': '5px'}),
     html.H4("Based on and Inspired by Alfons Cortés' Trading Strategy", 
@@ -218,7 +215,7 @@ app.layout = dbc.Container([
     data_details_modal,
     dcc.Store(id='update-trigger', data=0),
     
-    # Original Controls with improved spacing
+    # Controls Row 1
     dbc.Row([
         dbc.Col([
             html.Div([
@@ -293,7 +290,7 @@ app.layout = dbc.Container([
             ),
         ], width=3),
     ], className="mb-3"),
-    
+
     # --- EXIT SIGNAL GROUP ---
     dbc.Card([
         dbc.CardHeader(
@@ -457,22 +454,45 @@ app.layout = dbc.Container([
                 placement="right"
             ),
         ], width=4),
-    ], className="mb-5"),  # Increased bottom margin before chart
+    ], className="mb-5"),
 
     # Store for target date (hidden)
     dcc.Store(id='target-date-store'),
 
-    # Main chart with fixed height to prevent layout shifts
+    # Extra MAs - placed just above the chart
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                html.Label("Extra Moving Averages:"),
+                html.I(className="bi bi-info-circle ms-1", id="info-extra-ma", style={'cursor': 'pointer', 'color': '#6c757d'}),
+                dcc.Checklist(id='extra-ma-checklist', options=[
+                    {'label': ' 50D', 'value': '50d'},
+                    {'label': ' 200D', 'value': '200d'},
+                ], value=['200d'], inline=True,
+                    style={'marginLeft': '12px', 'display': 'inline-flex', 'gap': '12px'},
+                    labelStyle={'color': 'black'}),
+                dbc.Tooltip(
+                    "Overlay additional daily moving averages on the chart. "
+                    "50D (pink dotted) and 200D (purple dotted) are calculated on daily data "
+                    "and overlaid regardless of the selected chart period.",
+                    target="info-extra-ma",
+                    placement="right"
+                ),
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+        ], width=12),
+    ], className="mb-2"),
+
+    # Main chart
     html.Div([
-        dcc.Graph(id='stock-chart', style={'height': '1200px'}),  # Fixed height instead of 120vh
-    ], style={'marginBottom': '80px'}),  # Fixed spacing after chart
+        dcc.Graph(id='stock-chart', style={'height': '1200px'}),
+    ], style={'marginBottom': '80px'}),
     
-    # Relative Strength Section - separator line only (no title)
+    # Relative Strength Section
     html.Div([
         html.Hr(style={
             'marginTop': '0px',
             'marginBottom': '40px',
-            'borderTop': '3px solid #495057'  # Thicker (3px) and darker line
+            'borderTop': '3px solid #495057'
         }),
         
         dbc.Row([
@@ -590,66 +610,25 @@ app.layout = dbc.Container([
             'margin': '0 auto 20px auto'
         }),
         
-        # Resources section
         html.Div([
             html.H6("Source Articles", style={'fontWeight': 'bold', 'marginBottom': '10px'}),
             
             html.P("Trading Signals & Strategy:", 
                    style={'fontWeight': '600', 'fontSize': '13px', 'marginBottom': '5px', 'marginTop': '15px'}),
             html.Ul([
-                html.Li([
-                    html.A("In Dubio Pro Tauris", 
-                           href="https://themarket.ch/meinung/alfons-cortes-in-dubio-pro-tauris-ld.3769",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Keine Angst vor spekulativen Blasen", 
-                           href="https://themarket.ch/meinung/keine-angst-vor-spekulativen-blasen-ld.1582",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Plädoyer für mehr Gelassenheit an den Börsen", 
-                           href="https://themarket.ch/makro-maerkte/alfons-cortes-plaedoyer-fuer-mehr-gelassenheit-an-den-boersen-ld.15612",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Hinter Capex und Gold steht die gleiche Erzählung", 
-                           href="https://themarket.ch/makro-maerkte/hinter-capex-und-gold-steht-die-gleiche-erzaehlung-ld.15296",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
+                html.Li([html.A("In Dubio Pro Tauris", href="https://themarket.ch/meinung/alfons-cortes-in-dubio-pro-tauris-ld.3769", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Keine Angst vor spekulativen Blasen", href="https://themarket.ch/meinung/keine-angst-vor-spekulativen-blasen-ld.1582", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Plädoyer für mehr Gelassenheit an den Börsen", href="https://themarket.ch/makro-maerkte/alfons-cortes-plaedoyer-fuer-mehr-gelassenheit-an-den-boersen-ld.15612", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Hinter Capex und Gold steht die gleiche Erzählung", href="https://themarket.ch/makro-maerkte/hinter-capex-und-gold-steht-die-gleiche-erzaehlung-ld.15296", target="_blank", style={'color': '#007bff'})]),
             ], style={'textAlign': 'left', 'fontSize': '13px', 'lineHeight': '1.8'}),
             
             html.P("Relative Strength Analysis:", 
                    style={'fontWeight': '600', 'fontSize': '13px', 'marginBottom': '5px', 'marginTop': '15px'}),
             html.Ul([
-                html.Li([
-                    html.A("Der MSCI World bleibt der Leuchtturm im Nebel", 
-                           href="https://www.fuw.ch/der-msci-world-bleibt-der-leuchtturm-im-nebel-994955555043",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Das sind die stärksten Aktien der Welt", 
-                           href="https://themarket.ch/makro-maerkte/das-sind-die-staerksten-aktien-der-welt-ld.15600",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Kurs halten in ruhigen wie in turbulenten Zeiten", 
-                           href="https://themarket.ch/meinung/kurs-halten-in-ruhigen-wie-in-turbulenten-zeiten-ld.14426",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
-                html.Li([
-                    html.A("Ein Bekenntnis zum selektiven Bullenmarkt", 
-                           href="https://themarket.ch/makro-maerkte/ein-bekenntnis-zum-selektiven-bullenmarkt-ld.15171",
-                           target="_blank",
-                           style={'color': '#007bff'})
-                ]),
+                html.Li([html.A("Der MSCI World bleibt der Leuchtturm im Nebel", href="https://www.fuw.ch/der-msci-world-bleibt-der-leuchtturm-im-nebel-994955555043", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Das sind die stärksten Aktien der Welt", href="https://themarket.ch/makro-maerkte/das-sind-die-staerksten-aktien-der-welt-ld.15600", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Kurs halten in ruhigen wie in turbulenten Zeiten", href="https://themarket.ch/meinung/kurs-halten-in-ruhigen-wie-in-turbulenten-zeiten-ld.14426", target="_blank", style={'color': '#007bff'})]),
+                html.Li([html.A("Ein Bekenntnis zum selektiven Bullenmarkt", href="https://themarket.ch/makro-maerkte/ein-bekenntnis-zum-selektiven-bullenmarkt-ld.15171", target="_blank", style={'color': '#007bff'})]),
             ], style={'textAlign': 'left', 'fontSize': '13px', 'lineHeight': '1.8'}),
         ], style={
             'maxWidth': '600px',
@@ -658,7 +637,7 @@ app.layout = dbc.Container([
         }),
         
         html.P([
-            html.Em("Note: Any errors or misinterpretations of the original strategy are the responsibility ",
+            html.Em("Note: Any errors or misinterpretations of the original strategy are the responsibility "
             "of this implementation's author.")
         ], style={
             'fontSize': '12px', 
@@ -676,10 +655,8 @@ app.layout = dbc.Container([
         'paddingRight': '2rem',
     }),
     
-], fluid=True, className="p-4", style={'paddingBottom': '100px'})  # Extra padding at bottom of page
+], fluid=True, className="p-4", style={'paddingBottom': '100px'})
 
-# ============================================================================
-# ALL CALLBACKS - UNCHANGED FROM ORIGINAL
 # ============================================================================
 # WATCHLIST CALLBACKS
 # ============================================================================
@@ -693,7 +670,6 @@ def sync_watchlist_on_load(store_data):
     """On page load, merge browser localStorage with JSON file so both stay in sync."""
     store_data = store_data or []
     file_data = load_watchlist()
-    # Union of both sources — neither overwrites the other
     merged = list(dict.fromkeys(file_data + [t for t in store_data if t not in file_data]))
     if merged != file_data:
         save_watchlist(merged)
@@ -777,6 +753,8 @@ def filter_ticker_dropdown(n_clicks, watchlist):
     return options, toggle_style
 
 
+# ============================================================================
+# DATA MANAGEMENT CALLBACKS
 # ============================================================================
 
 @app.callback(
@@ -1012,7 +990,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     if rs_watchlist_active and watchlist:
         metrics_df = metrics_df[metrics_df['ticker'].isin(watchlist)]
     
-    # Sort by 6M Performance Relative to Benchmark (default)
     metrics_df = metrics_df.sort_values('6M Perf Rel. Bench', ascending=False)
     
     def truncate_name(name, max_length=25):
@@ -1026,32 +1003,27 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
     metrics_df['Ticker Name Short'] = metrics_df['Ticker Name'].apply(lambda x: truncate_name(x, max_length=25))
     metrics_df['Ticker Name Full'] = metrics_df['Ticker Name']
     
-    # Add star column based on watchlist
     metrics_df['⭐'] = metrics_df['ticker'].apply(lambda t: '⭐' if t in watchlist else '')
-    
-    # Rename column to add (%) suffix for display
     metrics_df['6M Perf Rel. Bench (%)'] = metrics_df['6M Perf Rel. Bench']
     
     metrics_df = metrics_df[['⭐', 'ticker', 'Ticker Name Short', 'Ticker Name Full', '6M Performance (%)', 
                               '12M Performance (%)', 'Avg Performance (%)', 
                               'Levy RS (%)', '6M Perf Rel. Bench (%)']]
     
-    # Styling: benchmark gets blue background (applied first)
     style_data_conditional = [
         {
             'if': {'row_index': i},
-            'backgroundColor': 'rgba(173, 216, 230, 0.3)'  # Light blue for benchmark
+            'backgroundColor': 'rgba(173, 216, 230, 0.3)'
         }
         for i, ticker in enumerate(metrics_df['ticker']) if ticker == reference_ticker
     ]
     
-    # Selected ticker gets italics, bold, and yellow background (applied second, takes priority)
     style_data_conditional.extend([
         {
             'if': {'row_index': i},
             'fontStyle': 'italic',
             'fontWeight': 'bold',
-            'backgroundColor': 'rgba(255, 255, 200, 0.3)'  # Light yellow for selected ticker
+            'backgroundColor': 'rgba(255, 255, 200, 0.3)'
         }
         for i, ticker in enumerate(metrics_df['ticker']) if ticker == selected_ticker
     ])
@@ -1076,7 +1048,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         ])
     
     table = dash_table.DataTable(
-        id='rs-table',  # Add ID for callback reference
+        id='rs-table',
         data=metrics_df.to_dict('records'),
         columns=[
             {'name': '⭐', 'id': '⭐'},
@@ -1099,7 +1071,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             'textAlign': 'left',
             'padding': '10px',
             'fontFamily': 'Arial, sans-serif',
-            'cursor': 'pointer'  # Show pointer cursor on hover
+            'cursor': 'pointer'
         },
         style_cell_conditional=[
             {
@@ -1120,7 +1092,6 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
             'textAlign': 'center'
         },
         style_data_conditional=style_data_conditional + [
-            # Highlight row on hover
             {
                 'if': {'state': 'active'},
                 'backgroundColor': 'rgba(0, 116, 217, 0.1)',
@@ -1130,7 +1101,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
         style_table={'overflowX': 'auto'},
         sort_action='native',
         filter_action='native',
-        row_selectable=False,  # Disable row selection checkbox
+        row_selectable=False,
     )
     
     date_info = ""
@@ -1171,7 +1142,7 @@ def update_relative_strength_table(selected_ticker, filter_value, reference_tick
 
 
 # ============================================================================
-# TABLE ROW CLICK CALLBACK - Switch ticker when clicking table row
+# TABLE ROW CLICK CALLBACK
 # ============================================================================
 
 @app.callback(
@@ -1201,7 +1172,6 @@ def handle_rs_table_click(active_cell, table_data, watchlist):
     watchlist = watchlist or []
 
     if col_id == '⭐':
-        # Toggle star for this ticker
         if ticker in watchlist:
             watchlist = [t for t in watchlist if t != ticker]
         else:
@@ -1209,12 +1179,11 @@ def handle_rs_table_click(active_cell, table_data, watchlist):
         save_watchlist(watchlist)
         return dash.no_update, watchlist
     else:
-        # Switch to this ticker
         return ticker, dash.no_update
 
 
 # ============================================================================
-# DEBOUNCING CALLBACKS - Delay parameter updates to prevent excessive recalculation
+# DEBOUNCING CALLBACKS
 # ============================================================================
 
 app.clientside_callback(
@@ -1302,6 +1271,10 @@ app.clientside_callback(
 )
 
 
+# ============================================================================
+# MAIN CHART CALLBACK
+# ============================================================================
+
 @app.callback(
     [Output('stock-chart', 'figure'), Output('ticker-name', 'children')],
     [Input('ticker-dropdown', 'value'), Input('period-selector', 'value'),
@@ -1310,13 +1283,15 @@ app.clientside_callback(
      Input('signal-checklist', 'value'), Input('debounced-bb-distance-threshold', 'data'),
      Input('zone-display-checklist', 'value'),
      Input('debounced-confirmation-window', 'data'), Input('debounced-confirmation-threshold', 'data'),
-     Input('debounced-max-reentry-signals', 'data'), Input('strategy-selector', 'value')]
+     Input('debounced-max-reentry-signals', 'data'), Input('strategy-selector', 'value'),
+     Input('extra-ma-checklist', 'value')]  # <-- NEW
 )
 def update_chart(selected_ticker, period, ma_period, scale,
                 flat_threshold_840, flat_threshold_420, 
                 enabled_signals, bb_distance_threshold, display_zones,
                 confirmation_window, confirmation_threshold,
-                max_reentry_signals, strategy):
+                max_reentry_signals, strategy,
+                extra_mas):  # <-- NEW
     try:
         if selected_ticker is None:
             selected_ticker = tickers[0] if tickers else 'EEM'
@@ -1350,6 +1325,7 @@ def update_chart(selected_ticker, period, ma_period, scale,
         confirmation_threshold = confirmation_threshold if confirmation_threshold is not None else 60
         max_reentry_signals = max_reentry_signals if max_reentry_signals is not None else 1
         strategy = strategy or 'orange'
+        extra_mas = extra_mas or []  # <-- NEW
         
         if ma_period == '20m10m':
             long_window, short_window, period_label = 420, 210, "20M/10M"
@@ -1391,6 +1367,10 @@ def update_chart(selected_ticker, period, ma_period, scale,
         
         bw = BandWidth(window=long_window)
         bandwidth_long = bw.calculate(bb_long_values)
+
+        # --- Extra MAs (calculated on daily data) ---
+        ma_50 = MovingAverage(window=50).calculate(data) if '50d' in extra_mas else None
+        ma_200 = MovingAverage(window=200).calculate(data) if '200d' in extra_mas else None
         
         start, end = display_data.index[0], display_data.index[-1]
         
@@ -1639,6 +1619,29 @@ def update_chart(selected_ticker, period, ma_period, scale,
                           name='Re-Entry Signal'), 
                 row=1, col=1
             )
+
+        # --- Plot extra MAs on top of everything else ---
+        if ma_50 is not None:
+            ma_50_filt = ma_50[(ma_50.index >= start) & (ma_50.index <= end)]
+            fig_with_bandwidth.add_trace(
+                go.Scatter(
+                    x=ma_50_filt.index, y=ma_50_filt,
+                    name='MA 50D',
+                    line=dict(color='deeppink', width=1.5, dash='dot')
+                ),
+                row=1, col=1
+            )
+
+        if ma_200 is not None:
+            ma_200_filt = ma_200[(ma_200.index >= start) & (ma_200.index <= end)]
+            fig_with_bandwidth.add_trace(
+                go.Scatter(
+                    x=ma_200_filt.index, y=ma_200_filt,
+                    name='MA 200D',
+                    line=dict(color='purple', width=1.5, dash='dot')
+                ),
+                row=1, col=1
+            )
         
         fig_with_bandwidth.add_trace(
             go.Scatter(x=data.index, y=bandwidth_long, name='BandWidth', 
@@ -1708,9 +1711,6 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 hover_y = zone_data['High'].max() * 0.95
                 
                 start_str = zone_start.strftime('%Y-%m-%d')
-                
-                
-                # Use raw daily Close at the exact signal date via .asof()
                 entry_price = data['Close'].asof(zone_start)
                 
                 exit_signal_str = "N/A"
@@ -1723,7 +1723,6 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 
                 end_str = zone_end.strftime('%Y-%m-%d')
                 
-                # Find the reentry signal within this zone
                 reentry_signal_dates = data.index[reentry_signals_filtered]
                 zone_reentry_dates = reentry_signal_dates[
                     (reentry_signal_dates >= zone_start) & (reentry_signal_dates <= zone_end)
@@ -1846,12 +1845,10 @@ def update_chart(selected_ticker, period, ma_period, scale,
                 tickangle=0, row=1, col=1
             )
         
-        # For long histories, set initial visible range to last 15 years to avoid label overlap
         if period in ['monthly', 'quarterly']:
             time_span_years = (display_data.index[-1] - display_data.index[0]).days / 365.25
             if time_span_years > 15:
                 initial_start = display_data.index[-1] - pd.DateOffset(years=15)
-                # Set range on all three subplots (they share x-axis)
                 fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=1, col=1)
                 fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=2, col=1)
                 fig_with_bandwidth.update_xaxes(range=[initial_start, display_data.index[-1]], row=3, col=1)
