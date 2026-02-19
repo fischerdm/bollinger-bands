@@ -32,6 +32,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved tick label overlap on long time series
 - Fixed form control label colors bleeding from chart theme
 
+## [0.1.3] - 2026-01-31
+
+### Fixed
+- **Re-entry signal visualization** now correctly uses the same BB distance-filtered signals as zone identification
+  - Eliminates orphaned green triangles appearing without corresponding zones
+- **Signal consumption tracking** in zone identification
+  - Signals are now only marked as used when they appear in a final green zone
+  - Previously, signals detected during pattern analysis were marked as used even when the orange strategy won
+  - Example: a 2009 exit detecting a green pattern with a 2022 signal, but orange winning, would lock that signal and make it unavailable for the actual 2022 exit
+
+### Added
+- Debug logging for BB distance filtering showing original count, filtered count, and number removed
+
+## [0.1.2] - 2026-01-31
+
+### Changed
+- **BREAKING: Unified confirmation parameters:** Simplified exit signal confirmation from 7 parameters to 2
+  - Removed: Smoothing Window, MA Condition Lookahead, MA Condition Threshold (Daily), Max Confirmation Wait
+  - Kept: Confirmation Window (20 days) and Confirmation Threshold (60%)
+  - Same progressive confirmation logic now applies consistently across all views (daily/monthly/quarterly)
+- **Natural signal limits:** Exit signals must be confirmed before the zone ends — no artificial time limits
+  - Orange zones end at MA crossing
+  - Green zones end at Nth re-entry signal
+  - Signals not confirmed in time are automatically rejected
+
+### Added
+- **Debouncing for numeric inputs:** 500ms delay prevents excessive recalculations when adjusting parameters
+  - Applies to: Confirmation Window/Threshold, Max Re-Entry Signals, Flat Thresholds, BB Distance
+- **Enhanced zone hover tooltips:** Each zone now shows start date (crossing), exit date (confirmation), and end date (re-entry)
+  - Green zones display ordinal re-entry signal label (e.g. "4th Re-Entry Signal")
+  - Orange zones display "MA Crossing"
+
+### Fixed
+- Exit signal lines now extend from MA value down to chart bottom instead of full height
+
 ## [0.1.1] - 2026-01-03
 
 ### Changed
