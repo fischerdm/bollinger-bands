@@ -111,7 +111,7 @@ Re-entry signals indicate that the asset has found support and may be resuming i
 ![Main Chart View](docs/images/app_main_chart.png)
 
 The main chart displays:
-- Calibration options
+- Calibration options and watchlist controls
 - Candlestick price data (daily, monthly, or quarterly)
 - Dual Bollinger Bands (40M/20M or 20M/10M)
 - Long and short moving averages
@@ -140,6 +140,7 @@ The relative strength table shows:
 - Sortable and filterable columns for quick analysis
 - Performance Metrics in different currencies
 - Highlighting of current selected ticker and benchmark
+- Star/unstar tickers to add or remove them from the watchlis
 
 
 ## Strategy Implementation
@@ -670,6 +671,6 @@ Strategy methodology based on work by financial analyst Cortés. Technical analy
 
 ---
 
-**Version**: 0.1.1  
-**Last Updated**: 2026-01-03  
+**Version**: 0.2.0  
+**Last Updated**: 2026-02-19  
 **Maintainer**: David Fischer
