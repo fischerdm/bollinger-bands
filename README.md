@@ -1,5 +1,7 @@
 # Bollinger Bands Trading Application
 
+![Demo](docs/images/app.gif)
+
 ## Overview
 
 This application implements a systematic trading strategy based on the methodology developed by financial analyst Cortés. The strategy combines technical analysis with momentum-based sector selection to identify optimal entry and exit points for sector ETF investments.
